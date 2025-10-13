@@ -77,12 +77,16 @@ class MpesaService {
 
       const payload = {
         ShortCode: mpesaConfig.shortcode,
-        ResponseType: mpesaConfig.responseType,
+        // ResponseType: mpesaConfig.responseType,
         ConfirmationURL: confirmation,
         ValidationURL: validation
       };
 
-      logger.info('Registering C2B URLs', payload);
+      logger.info('Registering C2B URLs', {
+        url: `${mpesaConfig.baseURL}${mpesaConfig.endpoints.c2bRegister}`,
+        payload,
+        tokenPrefix: token.substring(0, 20) + '...'
+      });
 
       const response = await axios.post(
         `${mpesaConfig.baseURL}${mpesaConfig.endpoints.c2bRegister}`,
@@ -111,7 +115,16 @@ class MpesaService {
       return response.data;
 
     } catch (error) {
-      logger.error('Failed to register C2B URLs', error);
+      logger.error('Failed to register C2B URLs', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+        config: {
+          url: error.config?.url,
+          method: error.config?.method,
+          data: error.config?.data
+        }
+      });
       
       // Log failed registration
       const { confirmation, validation } = mpesaConfig.getCallbackURLs();
