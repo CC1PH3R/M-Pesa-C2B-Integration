@@ -1,0 +1,68 @@
+// Prisma Schema for M-Pesa C2B Transactions
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// C2B Payment Transaction
+model Transaction {
+  id                String   @id @default(uuid())
+  
+  // M-Pesa Transaction Details
+  transactionType   String   // PayBill or BuyGoods
+  transID           String   @unique // M-Pesa transaction ID
+  transTime         String   // Transaction timestamp from M-Pesa
+  transAmount       Decimal  @db.Decimal(10, 2)
+  businessShortCode String   // Your paybill/till number
+  billRefNumber     String?  // Account number (can be null)
+  invoiceNumber     String?  // Invoice number (optional)
+  
+  // Customer Details
+  msisdn            String   // Customer phone number (254XXXXXXXXX)
+  firstName         String?
+  middleName        String?
+  lastName          String?
+  
+  // Organization Details
+  orgAccountBalance Decimal? @db.Decimal(10, 2)
+  
+  // Metadata
+  rawCallback       Json     // Store the entire callback for debugging
+  processed         Boolean  @default(false)
+  processingError   String?  // Store any processing errors
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@index([transID])
+  @@index([msisdn])
+  @@index([transTime])
+  @@index([createdAt])
+}
+
+// URL Registration Log
+model UrlRegistration {
+  id                String   @id @default(uuid())
+  shortCode         String
+  responseType      String   // Completed or Cancelled
+  confirmationURL   String
+  validationURL     String
+  registeredAt      DateTime @default(now())
+  success           Boolean
+  response          Json?    // Store M-Pesa response
+  
+  @@index([registeredAt])
+}
+
+// Access Token Cache
+model AccessToken {
+  id          String   @id @default(uuid())
+  token       String   @db.Text
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+}
