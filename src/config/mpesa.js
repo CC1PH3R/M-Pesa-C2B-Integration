@@ -5,11 +5,11 @@
 require('dotenv').config();
 
 const mpesaConfig = {
-  // API Credentials
-  consumerKey: process.env.MPESA_CONSUMER_KEY,
-  consumerSecret: process.env.MPESA_CONSUMER_SECRET,
-  shortcode: process.env.MPESA_SHORTCODE,
-  passkey: process.env.MPESA_PASSKEY,
+  // API Credentials (trim whitespace)
+  consumerKey: process.env.MPESA_CONSUMER_KEY?.trim(),
+  consumerSecret: process.env.MPESA_CONSUMER_SECRET?.trim(),
+  shortcode: process.env.MPESA_SHORTCODE?.trim(),
+  passkey: process.env.MPESA_PASSKEY?.trim(),
   
   // API URLs
   baseURL: process.env.MPESA_BASE_URL || 'https://api.safaricom.co.ke',

@@ -163,6 +163,87 @@ class MpesaController {
   }
 
   /**
+   * Test access token generation and validity
+   */
+  async testAuth(req, res) {
+    try {
+      logger.info('Testing authentication');
+
+      // Force generate new token
+      const mpesaService = require('../services/mpesaService');
+      const { PrismaClient } = require('@prisma/client');
+      const prisma = new PrismaClient();
+      
+      // Clear cached tokens
+      await prisma.accessToken.deleteMany({});
+      logger.info('Cleared cached tokens');
+
+      // Generate fresh token
+      const token = await mpesaService.getAccessToken();
+      
+      // Test token by making a simple API call
+      const axios = require('axios');
+      const mpesaConfig = require('../config/mpesa');
+      
+      try {
+        // Try to register URLs with fresh token
+        const testResponse = await axios.post(
+          `${mpesaConfig.baseURL}${mpesaConfig.endpoints.c2bRegister}`,
+          {
+            ShortCode: mpesaConfig.shortcode,
+            ResponseType: mpesaConfig.responseType,
+            ConfirmationURL: `${mpesaConfig.appBaseURL}/api/mpesa/confirmation`,
+            ValidationURL: `${mpesaConfig.appBaseURL}/api/mpesa/confirmation`
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            timeout: 30000
+          }
+        );
+
+        return res.status(200).json({
+          success: true,
+          message: 'Token is valid',
+          tokenInfo: {
+            length: token.length,
+            prefix: token.substring(0, 20) + '...',
+          },
+          mpesaResponse: testResponse.data
+        });
+
+      } catch (apiError) {
+        return res.status(200).json({
+          success: false,
+          message: 'Token generated but API call failed',
+          tokenInfo: {
+            length: token.length,
+            prefix: token.substring(0, 20) + '...',
+          },
+          error: {
+            status: apiError.response?.status,
+            code: apiError.response?.data?.errorCode,
+            message: apiError.response?.data?.errorMessage,
+            fullError: apiError.response?.data
+          }
+        });
+      }
+
+    } catch (error) {
+      logger.error('Test auth failed', error);
+      
+      return res.status(500).json({
+        success: false,
+        message: 'Authentication test failed',
+        error: error.message,
+        details: error.response?.data
+      });
+    }
+  }
+
+  /**
    * Health check endpoint
    */
   async health(req, res) {

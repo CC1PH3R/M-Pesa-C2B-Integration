@@ -10,6 +10,35 @@ const router = express.Router();
 // Health check
 router.get('/health', mpesaController.health);
 
+// Debug credentials (remove after testing)
+router.get('/debug-config', (req, res) => {
+  const mpesaConfig = require('../config/mpesa');
+  res.json({
+    consumerKey: {
+      exists: !!mpesaConfig.consumerKey,
+      length: mpesaConfig.consumerKey?.length,
+      first10: mpesaConfig.consumerKey?.substring(0, 10),
+      last10: mpesaConfig.consumerKey?.substring(mpesaConfig.consumerKey.length - 10),
+      hasWhitespace: /\s/.test(mpesaConfig.consumerKey || '')
+    },
+    consumerSecret: {
+      exists: !!mpesaConfig.consumerSecret,
+      length: mpesaConfig.consumerSecret?.length,
+      first10: mpesaConfig.consumerSecret?.substring(0, 10),
+      last10: mpesaConfig.consumerSecret?.substring(mpesaConfig.consumerSecret.length - 10),
+      hasWhitespace: /\s/.test(mpesaConfig.consumerSecret || '')
+    },
+    shortcode: mpesaConfig.shortcode,
+    baseURL: mpesaConfig.baseURL,
+    appBaseURL: mpesaConfig.appBaseURL,
+    authEndpoint: `${mpesaConfig.baseURL}${mpesaConfig.endpoints.auth}`,
+    registerEndpoint: `${mpesaConfig.baseURL}${mpesaConfig.endpoints.c2bRegister}`
+  });
+});
+
+// Test authentication
+router.get('/test-auth', mpesaController.testAuth);
+
 // Register C2B URLs with M-Pesa
 router.post('/register', mpesaController.registerUrls);
 
@@ -22,58 +51,5 @@ router.get('/transactions/:transID', mpesaController.getTransaction);
 
 // Simulate payment (for testing)
 router.post('/simulate', mpesaController.simulate);
-
-// Test raw auth and registration (for debugging)
-router.get('/raw-auth-test', async (req, res) => {
-  const axios = require('axios');
-  
-  const key = process.env.MPESA_CONSUMER_KEY?.trim();
-  const secret = process.env.MPESA_CONSUMER_SECRET?.trim();
-  
-  const auth = Buffer.from(`${key}:${secret}`).toString('base64');
-  
-  try {
-    const tokenRes = await axios.get(
-      'https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials',
-      {
-        headers: { Authorization: `Basic ${auth}` }
-      }
-    );
-    
-    const token = tokenRes.data.access_token;
-    
-    // Immediately try registration
-    const regRes = await axios.post(
-      'https://api.safaricom.co.ke/mpesa/c2b/v1/registerurl',
-      {
-        ShortCode: process.env.MPESA_SHORTCODE?.trim(),
-        ResponseType: 'Completed',
-        ConfirmationURL: `${process.env.APP_BASE_URL}/api/mpesa/confirmation`,
-        ValidationURL: `${process.env.APP_BASE_URL}/api/mpesa/confirmation`
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-    
-    res.json({
-      success: true,
-      tokenGenerated: true,
-      registrationSuccess: true,
-      response: regRes.data
-    });
-    
-  } catch (err) {
-    res.json({
-      success: false,
-      error: err.message,
-      response: err.response?.data,
-      status: err.response?.status
-    });
-  }
-});
 
 module.exports = router;

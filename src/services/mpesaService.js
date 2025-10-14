@@ -15,11 +15,14 @@ class MpesaService {
    */
   async getAccessToken() {
     try {
+      // Add 5 minute buffer to ensure token is valid
+      const bufferTime = new Date(Date.now() + (5 * 60 * 1000));
+      
       // Check if we have a valid cached token
       const cachedToken = await prisma.accessToken.findFirst({
         where: {
           expiresAt: {
-            gt: new Date()
+            gt: bufferTime
           }
         },
         orderBy: {
@@ -28,28 +31,55 @@ class MpesaService {
       });
 
       if (cachedToken) {
-        logger.info('Using cached access token');
+        const timeRemaining = Math.floor((cachedToken.expiresAt - new Date()) / 1000);
+        logger.info('Using cached access token', { 
+          expiresAt: cachedToken.expiresAt,
+          secondsRemaining: timeRemaining
+        });
         return cachedToken.token;
       }
+
+      logger.info('Generating new access token');
+
+      // Clear old tokens first
+      await prisma.accessToken.deleteMany({});
 
       // Generate new token
       const auth = Buffer.from(
         `${mpesaConfig.consumerKey}:${mpesaConfig.consumerSecret}`
       ).toString('base64');
 
+      logger.info('Making auth request', {
+        url: `${mpesaConfig.baseURL}${mpesaConfig.endpoints.auth}`,
+        consumerKeyLength: mpesaConfig.consumerKey?.length,
+        consumerSecretLength: mpesaConfig.consumerSecret?.length
+      });
+
       const response = await axios.get(
         `${mpesaConfig.baseURL}${mpesaConfig.endpoints.auth}`,
         {
           headers: {
-            Authorization: `Basic ${auth}`
-          }
+            Authorization: `Basic ${auth}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: 30000
         }
       );
 
+      logger.info('Auth response received', {
+        status: response.status,
+        hasAccessToken: !!response.data.access_token,
+        expiresIn: response.data.expires_in
+      });
+
       const { access_token, expires_in } = response.data;
       
-      // Cache the token (expires_in is in seconds)
-      const expiresAt = new Date(Date.now() + (expires_in * 1000) - 60000); // 1 min buffer
+      if (!access_token) {
+        throw new Error('No access token in response');
+      }
+
+      // Cache the token with 5 minute buffer (expires_in is in seconds)
+      const expiresAt = new Date(Date.now() + ((expires_in - 300) * 1000));
       
       await prisma.accessToken.create({
         data: {
@@ -58,11 +88,24 @@ class MpesaService {
         }
       });
 
-      logger.info('Generated new access token', { expiresAt });
+      logger.info('Access token generated and cached', { 
+        expiresAt,
+        expiresInSeconds: expires_in,
+        tokenLength: access_token.length
+      });
+
       return access_token;
 
     } catch (error) {
-      logger.error('Failed to get access token', error);
+      logger.error('Failed to get access token', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        config: {
+          url: error.config?.url,
+          headers: error.config?.headers
+        }
+      });
       throw new Error(`M-Pesa auth failed: ${error.message}`);
     }
   }
