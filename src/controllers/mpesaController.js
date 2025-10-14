@@ -163,11 +163,11 @@ class MpesaController {
   }
 
   /**
-   * Test access token generation and validity
+   * Test access token generation and validity (C2B v2)
    */
   async testAuth(req, res) {
     try {
-      logger.info('Testing authentication');
+      logger.info('Testing authentication with C2B v2');
 
       // Force generate new token
       const mpesaService = require('../services/mpesaService');
@@ -181,19 +181,19 @@ class MpesaController {
       // Generate fresh token
       const token = await mpesaService.getAccessToken();
       
-      // Test token by making a simple API call
+      // Test token by making a C2B v2 API call
       const axios = require('axios');
       const mpesaConfig = require('../config/mpesa');
       
       try {
-        // Try to register URLs with fresh token
+        // Try to register URLs with fresh token (v2 endpoint)
         const testResponse = await axios.post(
           `${mpesaConfig.baseURL}${mpesaConfig.endpoints.c2bRegister}`,
           {
             ShortCode: mpesaConfig.shortcode,
             ResponseType: mpesaConfig.responseType,
-            ConfirmationURL: `${mpesaConfig.appBaseURL}/api/mpesa/confirmation`,
-            ValidationURL: `${mpesaConfig.appBaseURL}/api/mpesa/confirmation`
+            ConfirmationURL: `${mpesaConfig.appBaseURL}/api/ganji/confirmation`,
+            ValidationURL: `${mpesaConfig.appBaseURL}/api/ganji/confirmation`
           },
           {
             headers: {
@@ -206,7 +206,8 @@ class MpesaController {
 
         return res.status(200).json({
           success: true,
-          message: 'Token is valid',
+          message: 'Token is valid and C2B v2 registration successful',
+          apiVersion: 'v2',
           tokenInfo: {
             length: token.length,
             prefix: token.substring(0, 20) + '...',
@@ -217,7 +218,8 @@ class MpesaController {
       } catch (apiError) {
         return res.status(200).json({
           success: false,
-          message: 'Token generated but API call failed',
+          message: 'Token generated but C2B v2 API call failed',
+          apiVersion: 'v2',
           tokenInfo: {
             length: token.length,
             prefix: token.substring(0, 20) + '...',

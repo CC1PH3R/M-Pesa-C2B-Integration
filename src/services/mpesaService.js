@@ -111,44 +111,62 @@ class MpesaService {
   }
 
   /**
-   * Register C2B URLs with M-Pesa
+   * Register C2B URLs with M-Pesa (v2 API)
+   * 
+   * C2B v2 Requirements:
+   * - ValidationURL is optional (can use same as ConfirmationURL)
+   * - URLs cannot contain keywords: mpesa, safaricom, money, pay, payment
+   * - ResponseType: Completed or Cancelled
    */
   async registerC2BUrls() {
     try {
       // Get access token
       const token = await this.getAccessToken();
-      logger.info('Access token obtained for registration');
+      logger.info('Access token obtained for C2B v2 registration');
 
       // Get confirmation URL
       const { confirmation } = mpesaConfig.getCallbackURLs();
 
-      // Build payload - Validation URL is optional
+      // Validate URL doesn't contain blocked keywords
+      const blockedKeywords = ['mpesa', 'safaricom', 'money', 'pay', 'payment'];
+      const urlLower = confirmation.toLowerCase();
+      const foundKeyword = blockedKeywords.find(keyword => urlLower.includes(keyword));
+      
+      if (foundKeyword) {
+        throw new Error(
+          `Callback URL contains blocked keyword '${foundKeyword}'. ` +
+          `Daraja C2B v2 rejects URLs with: ${blockedKeywords.join(', ')}`
+        );
+      }
+
+      // Build payload for C2B v2
       const payload = {
         ShortCode: mpesaConfig.shortcode,
         ResponseType: mpesaConfig.responseType,
         ConfirmationURL: confirmation,
-        ValidationURL: confirmation // Use same URL to avoid validation logic
+        ValidationURL: confirmation // Use same URL to skip validation
       };
 
-      logger.info('Attempting to register C2B URLs with payload', {
+      logger.info('Attempting C2B v2 URL registration', {
         shortCode: payload.ShortCode,
         confirmationURL: payload.ConfirmationURL,
-        responseType: payload.ResponseType
+        responseType: payload.ResponseType,
+        apiVersion: 'v2'
       });
 
-      // Make API request
+      // Make API request to v2 endpoint
       const url = `${mpesaConfig.baseURL}${mpesaConfig.endpoints.c2bRegister}`;
-      logger.info('Calling M-Pesa API', { url });
+      logger.info('Calling M-Pesa C2B v2 API', { url });
 
       const response = await axios.post(url, payload, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        timeout: 30000 // 30 second timeout
+        timeout: 30000
       });
 
-      logger.info('M-Pesa API response received', {
+      logger.info('M-Pesa C2B v2 response received', {
         status: response.status,
         data: response.data
       });
@@ -170,9 +188,9 @@ class MpesaService {
       });
 
       if (success) {
-        logger.info('C2B URLs registered successfully');
+        logger.info('C2B v2 URLs registered successfully');
       } else {
-        logger.warn('Registration completed but may have issues', response.data);
+        logger.warn('C2B v2 registration completed but may have issues', response.data);
       }
 
       return response.data;
@@ -184,15 +202,16 @@ class MpesaService {
         code: error.code,
         status: error.response?.status,
         statusText: error.response?.statusText,
+        errorCode: error.response?.data?.errorCode,
+        errorMessage: error.response?.data?.errorMessage,
         data: error.response?.data,
         config: {
           url: error.config?.url,
-          method: error.config?.method,
-          headers: error.config?.headers
+          method: error.config?.method
         }
       };
 
-      logger.error('Failed to register C2B URLs', errorDetails);
+      logger.error('Failed to register C2B v2 URLs', errorDetails);
       
       // Log failed registration
       try {

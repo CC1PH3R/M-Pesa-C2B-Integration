@@ -23,14 +23,14 @@ const mpesaConfig = {
   // API Endpoints
   endpoints: {
     auth: '/oauth/v1/generate?grant_type=client_credentials',
-    c2bRegister: '/mpesa/c2b/v1/registerurl',
-    c2bSimulate: '/mpesa/c2b/v1/simulate' // For testing
+    c2bRegister: '/mpesa/c2b/v2/registerurl', // v2 required for production shortcodes
+    c2bSimulate: '/mpesa/c2b/v1/simulate' // For testing (still v1)
   },
   
   // Callback URLs
   getCallbackURLs: function() {
     return {
-      confirmation: `${this.appBaseURL}/api/mpesa/confirmation`
+      confirmation: `${this.appBaseURL}/api/ganji/confirmation`
     };
   },
   

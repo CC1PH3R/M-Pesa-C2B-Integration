@@ -32,7 +32,8 @@ app.use((req, res, next) => {
 });
 
 // Routes
-app.use('/api/mpesa', mpesaRoutes);
+// Using '/api/ganji' instead of '/api/mpesa' to comply with Daraja C2B URL restrictions
+app.use('/api/ganji', mpesaRoutes);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -41,10 +42,10 @@ app.get('/', (req, res) => {
     message: 'M-Pesa C2B Test API',
     version: '1.0.0',
     endpoints: {
-      health: '/api/mpesa/health',
-      register: 'POST /api/mpesa/register',
-      transactions: 'GET /api/mpesa/transactions',
-      simulate: 'POST /api/mpesa/simulate'
+      health: '/api/ganji/health',
+      register: 'POST /api/ganji/register',
+      transactions: 'GET /api/ganji/transactions',
+      simulate: 'POST /api/ganji/simulate'
     }
   });
 });

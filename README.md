@@ -4,15 +4,16 @@ A comprehensive Node.js application for testing M-Pesa Daraja C2B (Customer to B
 
 ## Features
 
-- ✅ M-Pesa C2B API integration (Production ready)
+- ✅ M-Pesa C2B API v2 integration (Production ready)
 - ✅ Secure credential management with environment variables
 - ✅ Access token caching to minimize API calls
-- ✅ Webhook handlers for validation and confirmation callbacks
+- ✅ Webhook handler for confirmation callbacks
 - ✅ PostgreSQL database with Prisma ORM
 - ✅ Complete transaction logging and storage
 - ✅ Payment simulation endpoint for testing
 - ✅ Docker containerization
 - ✅ Railway deployment ready
+- ✅ Daraja URL validation compliance (no blocked keywords)
 
 ## Prerequisites
 
@@ -44,6 +45,32 @@ mpesa-c2b-test/
 ├── package.json
 └── .env                       # Environment variables
 ```
+
+## Important Daraja C2B v2 Restrictions
+
+### API Base Path: `/api/ganji`
+
+**Original intended path:** `/api/mpesa`  
+**Current path:** `/api/ganji`
+
+**Reason:** Daraja C2B v2 URL validation rejects callback URLs containing these keywords:
+- `mpesa`
+- `safaricom`
+- `money`
+- `pay`
+- `payment`
+
+**Solution:** Using `ganji` (slang for money) as the base API path to comply with Daraja restrictions.
+
+**Documentation:** [Daraja C2B API Reference](https://developer.safaricom.co.ke/APIs/MpesaExpressSimulate)
+
+### API Version
+This app uses **C2B v2** (`/c2b/v2/registerurl`). Most production shortcodes require v2.
+
+### Example URL Validation
+- ❌ `https://yourapp.com/api/mpesa/confirmation` (contains 'mpesa')
+- ❌ `https://yourapp.com/api/payment/callback` (contains 'payment')  
+- ✅ `https://yourapp.com/api/ganji/confirmation` (compliant)
 
 ## Setup Instructions
 
@@ -111,6 +138,7 @@ npm start
 
 ### Step 4: Configure Environment Variables
 In Railway dashboard, add these variables:
+- `PORT` = `3000`
 - `MPESA_CONSUMER_KEY`
 - `MPESA_CONSUMER_SECRET`
 - `MPESA_SHORTCODE`
@@ -134,12 +162,12 @@ Railway will automatically:
 
 ### 1. Health Check
 ```http
-GET /api/mpesa/health
+GET /api/ganji/health
 ```
 
 ### 2. Register C2B URLs with M-Pesa
 ```http
-POST /api/mpesa/register
+POST /api/ganji/register
 ```
 **Important:** Run this once after deployment to register your callback URLs with M-Pesa.
 
@@ -156,7 +184,7 @@ Response:
 
 ### 3. Get All Transactions
 ```http
-GET /api/mpesa/transactions?limit=50
+GET /api/ganji/transactions?limit=50
 ```
 
 Response:
@@ -180,12 +208,12 @@ Response:
 
 ### 4. Get Single Transaction
 ```http
-GET /api/mpesa/transactions/:transID
+GET /api/ganji/transactions/:transID
 ```
 
 ### 5. Simulate Payment (Testing)
 ```http
-POST /api/mpesa/simulate
+POST /api/ganji/simulate
 Content-Type: application/json
 
 {
@@ -196,8 +224,9 @@ Content-Type: application/json
 ```
 
 ### 6. M-Pesa Callbacks (Called by M-Pesa)
-- **Validation:** `POST /api/mpesa/validation`
-- **Confirmation:** `POST /api/mpesa/confirmation`
+- **Confirmation:** `POST /api/ganji/confirmation`
+
+**Note:** Uses `/ganji/` instead of `/mpesa/` to comply with Daraja URL validation rules.
 
 ## Testing the Integration
 
@@ -205,7 +234,7 @@ Content-Type: application/json
 After deployment, register your callback URLs:
 
 ```bash
-curl -X POST https://your-app.railway.app/api/mpesa/register
+curl -X POST https://your-app.railway.app/api/ganji/register
 ```
 
 ### Step 2: Make a Real Payment
@@ -219,7 +248,7 @@ curl -X POST https://your-app.railway.app/api/mpesa/register
 
 ### Step 3: Check Database
 ```bash
-curl https://your-app.railway.app/api/mpesa/transactions
+curl https://your-app.railway.app/api/ganji/transactions
 ```
 
 ## Database Schema
@@ -245,10 +274,20 @@ curl https://your-app.railway.app/api/mpesa/transactions
 
 ## Troubleshooting
 
+### "Invalid ValidationURL" Error
+**Error:** `400.003.02 - Bad Request - Invalid ValidationURL - URL has the word MPESA`
+
+**Cause:** Daraja C2B v2 blocks URLs containing keywords like 'mpesa', 'safaricom', 'money'
+
+**Solution:** 
+- Use neutral path like `/api/webhook/confirmation`
+- Avoid blocked keywords in your domain or path
+- This app already handles this correctly
+
 ### Callbacks Not Received
 1. **Check URL registration:**
    ```bash
-   curl https://your-app.railway.app/api/mpesa/register
+   curl https://your-app.railway.app/api/ganji/register
    ```
 
 2. **Verify APP_BASE_URL is correct:**
@@ -261,6 +300,13 @@ curl https://your-app.railway.app/api/mpesa/transactions
 ### 403 Errors
 - Ensure you're using `https://api.safaricom.co.ke` (with `api.` subdomain)
 - Verify your Consumer Key and Secret are correct
+- Check that your app is using C2B v2 (not v1)
+
+### 401 Authentication Errors
+- Verify credentials are from the correct Daraja app
+- Ensure app status is "Active" in Daraja portal
+- Check that credentials don't have extra whitespace
+- Some shortcodes only work with C2B v2
 
 ### Database Connection Issues
 - Railway automatically provides `DATABASE_URL`
@@ -268,19 +314,29 @@ curl https://your-app.railway.app/api/mpesa/transactions
 
 ## Important Notes
 
+### C2B API Version
+This app uses **C2B v2** which is required for most production shortcodes. The key differences:
+- v1: `/c2b/v1/registerurl`
+- v2: `/c2b/v2/registerurl` (stricter URL validation)
+
 ### Validation Endpoint
-The validation endpoint currently **accepts all transactions**. In production, implement business logic:
+Validation is **optional** in C2B v2. This app uses the same URL for both validation and confirmation to simplify setup. All transactions are accepted by default.
+
+In production, implement validation logic in the confirmation handler:
 
 ```javascript
-// Example validation logic
-if (amount < minimumAmount) {
-  return res.json({ ResultCode: 1, ResultDesc: 'Amount too low' });
-}
-
-if (!isValidAccount(billRefNumber)) {
-  return res.json({ ResultCode: 1, ResultDesc: 'Invalid account' });
+// Example: reject small amounts
+if (amount < 10) {
+  // Log but still save - you can't actually reject in confirmation
+  logger.warn('Amount below minimum', { amount });
 }
 ```
+
+### Daraja URL Keywords
+**Critical:** Daraja rejects callback URLs containing:
+- mpesa, safaricom, money, pay, payment, cash, till, paybill
+
+Use neutral terms like: webhook, callback, notify, confirm, transaction
 
 ### Response Time
 - M-Pesa requires callback responses **within 30 seconds**
