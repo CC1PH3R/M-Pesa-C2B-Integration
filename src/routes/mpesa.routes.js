@@ -14,7 +14,6 @@ router.get('/health', mpesaController.health);
 router.post('/register', mpesaController.registerUrls);
 
 // M-Pesa Callbacks (these will be called by M-Pesa)
-router.post('/validation', mpesaController.validation);
 router.post('/confirmation', mpesaController.confirmation);
 
 // Transaction management endpoints

@@ -72,72 +72,105 @@ class MpesaService {
    */
   async registerC2BUrls() {
     try {
+      // Get access token
       const token = await this.getAccessToken();
-      const { confirmation, validation } = mpesaConfig.getCallbackURLs();
+      logger.info('Access token obtained for registration');
 
+      // Get confirmation URL
+      const { confirmation } = mpesaConfig.getCallbackURLs();
+
+      // Build payload - Validation URL is optional
       const payload = {
         ShortCode: mpesaConfig.shortcode,
-        // ResponseType: mpesaConfig.responseType,
+        ResponseType: mpesaConfig.responseType,
         ConfirmationURL: confirmation,
-        ValidationURL: validation
+        ValidationURL: confirmation // Use same URL to avoid validation logic
       };
 
-      logger.info('Registering C2B URLs', {
-        url: `${mpesaConfig.baseURL}${mpesaConfig.endpoints.c2bRegister}`,
-        payload,
-        tokenPrefix: token.substring(0, 20) + '...'
+      logger.info('Attempting to register C2B URLs with payload', {
+        shortCode: payload.ShortCode,
+        confirmationURL: payload.ConfirmationURL,
+        responseType: payload.ResponseType
       });
 
-      const response = await axios.post(
-        `${mpesaConfig.baseURL}${mpesaConfig.endpoints.c2bRegister}`,
-        payload,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
+      // Make API request
+      const url = `${mpesaConfig.baseURL}${mpesaConfig.endpoints.c2bRegister}`;
+      logger.info('Calling M-Pesa API', { url });
 
-      // Log registration
+      const response = await axios.post(url, payload, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 30000 // 30 second timeout
+      });
+
+      logger.info('M-Pesa API response received', {
+        status: response.status,
+        data: response.data
+      });
+
+      // Check if registration was successful
+      const success = response.data.ResponseCode === '0' || 
+                     response.data.ResponseDescription?.toLowerCase().includes('success');
+
+      // Log registration attempt
       await prisma.urlRegistration.create({
         data: {
           shortCode: mpesaConfig.shortcode,
           responseType: mpesaConfig.responseType,
           confirmationURL: confirmation,
-          validationURL: validation,
-          success: response.data.ResponseCode === '0',
+          validationURL: confirmation,
+          success: success,
           response: response.data
         }
       });
 
-      logger.info('C2B URLs registered successfully', response.data);
+      if (success) {
+        logger.info('C2B URLs registered successfully');
+      } else {
+        logger.warn('Registration completed but may have issues', response.data);
+      }
+
       return response.data;
 
     } catch (error) {
-      logger.error('Failed to register C2B URLs', {
+      // Enhanced error logging
+      const errorDetails = {
         message: error.message,
+        code: error.code,
         status: error.response?.status,
+        statusText: error.response?.statusText,
         data: error.response?.data,
         config: {
           url: error.config?.url,
           method: error.config?.method,
-          data: error.config?.data
+          headers: error.config?.headers
         }
-      });
+      };
+
+      logger.error('Failed to register C2B URLs', errorDetails);
       
       // Log failed registration
-      const { confirmation, validation } = mpesaConfig.getCallbackURLs();
-      await prisma.urlRegistration.create({
-        data: {
-          shortCode: mpesaConfig.shortcode,
-          responseType: mpesaConfig.responseType,
-          confirmationURL: confirmation,
-          validationURL: validation,
-          success: false,
-          response: { error: error.message }
-        }
-      });
+      try {
+        const { confirmation } = mpesaConfig.getCallbackURLs();
+        await prisma.urlRegistration.create({
+          data: {
+            shortCode: mpesaConfig.shortcode,
+            responseType: mpesaConfig.responseType,
+            confirmationURL: confirmation,
+            validationURL: confirmation,
+            success: false,
+            response: {
+              error: error.message,
+              mpesaError: error.response?.data,
+              statusCode: error.response?.status
+            }
+          }
+        });
+      } catch (dbError) {
+        logger.error('Failed to log registration error', dbError);
+      }
 
       throw error;
     }

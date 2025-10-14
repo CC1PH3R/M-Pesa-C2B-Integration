@@ -11,6 +11,11 @@ class MpesaController {
    */
   async registerUrls(req, res) {
     try {
+      logger.info('Register URLs endpoint called', {
+        method: req.method,
+        url: req.url
+      });
+
       const result = await mpesaService.registerC2BUrls();
       
       return res.status(200).json({
@@ -19,49 +24,18 @@ class MpesaController {
         data: result
       });
     } catch (error) {
-      logger.error('Register URLs controller error', error);
+      logger.error('Register URLs controller error', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
       
       return res.status(500).json({
         success: false,
         message: 'Failed to register C2B URLs',
-        error: error.message
-      });
-    }
-  }
-
-  /**
-   * C2B Validation callback
-   * M-Pesa calls this to validate a transaction before processing
-   */
-  async validation(req, res) {
-    try {
-      logger.info('Validation callback received', req.body);
-
-      // For this test app, we accept all transactions
-      // In production, you would validate against your business logic:
-      // - Check if account exists
-      // - Check if amount is within limits
-      // - Verify customer eligibility
-      
-      // Return success response immediately (within 30 seconds)
-      return res.status(200).json({
-        ResultCode: 0,
-        ResultDesc: 'Accepted'
-      });
-
-      // To reject a transaction, return:
-      // return res.status(200).json({
-      //   ResultCode: 1,
-      //   ResultDesc: 'Rejected'
-      // });
-
-    } catch (error) {
-      logger.error('Validation callback error', error);
-      
-      // Still return success to avoid M-Pesa retries
-      return res.status(200).json({
-        ResultCode: 0,
-        ResultDesc: 'Accepted'
+        error: error.message,
+        mpesaError: error.response?.data,
+        hint: 'Check logs for detailed error information'
       });
     }
   }

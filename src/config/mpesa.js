@@ -30,8 +30,7 @@ const mpesaConfig = {
   // Callback URLs
   getCallbackURLs: function() {
     return {
-      confirmation: `${this.appBaseURL}/api/mpesa/confirmation`,
-      validation: `${this.appBaseURL}/api/mpesa/validation`
+      confirmation: `${this.appBaseURL}/api/mpesa/confirmation`
     };
   },
   
