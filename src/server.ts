@@ -1,18 +1,16 @@
-/**
- * M-Pesa C2B Test Application Server
- */
+import dotenv from 'dotenv';
+dotenv.config();
 
-require('dotenv').config();
-const express = require('express');
-const helmet = require('helmet');
-const cors = require('cors');
-const morgan = require('morgan');
-const mpesaRoutes = require('./routes/mpesa.routes');
-const mpesaConfig = require('./config/mpesa');
-const logger = require('./utils/logger');
+import express, { Request, Response, NextFunction } from 'express';
+import helmet from 'helmet';
+import cors from 'cors';
+import morgan from 'morgan';
+import mpesaRoutes from './routes/mpesa.routes';
+import mpesaConfig from './config/mpesa';
+import logger from './utils/logger';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT ?? 3000;
 
 // Middleware
 app.use(helmet());
@@ -22,11 +20,11 @@ app.use(express.urlencoded({ extended: true }));
 app.use(morgan('combined'));
 
 // Request logging
-app.use((req, res, next) => {
+app.use((req: Request, _res: Response, next: NextFunction) => {
   logger.info('Incoming request', {
     method: req.method,
     path: req.path,
-    ip: req.ip
+    ip: req.ip,
   });
   next();
 });
@@ -36,7 +34,7 @@ app.use((req, res, next) => {
 app.use('/api/ganji', mpesaRoutes);
 
 // Root endpoint
-app.get('/', (req, res) => {
+app.get('/', (_req: Request, res: Response) => {
   res.json({
     success: true,
     message: 'M-Pesa C2B Test API',
@@ -45,46 +43,48 @@ app.get('/', (req, res) => {
       health: '/api/ganji/health',
       register: 'POST /api/ganji/register',
       transactions: 'GET /api/ganji/transactions',
-      simulate: 'POST /api/ganji/simulate'
-    }
+      simulate: 'POST /api/ganji/simulate',
+    },
   });
 });
 
 // 404 handler
-app.use((req, res) => {
+app.use((_req: Request, res: Response) => {
   res.status(404).json({
     success: false,
-    message: 'Endpoint not found'
+    message: 'Endpoint not found',
   });
 });
 
 // Error handler
-app.use((err, req, res, next) => {
+interface HttpError extends Error {
+  status?: number;
+}
+
+app.use((err: HttpError, _req: Request, res: Response, _next: NextFunction) => {
   logger.error('Server error', err);
-  
-  res.status(err.status || 500).json({
+
+  res.status(err.status ?? 500).json({
     success: false,
-    message: err.message || 'Internal server error'
+    message: err.message || 'Internal server error',
   });
 });
 
 // Start server
-async function startServer() {
+async function startServer(): Promise<void> {
   try {
-    // Validate M-Pesa configuration
     mpesaConfig.validate();
     logger.info('M-Pesa configuration validated');
 
     app.listen(PORT, () => {
-      logger.info(`Server started successfully`, {
+      logger.info('Server started successfully', {
         port: PORT,
         environment: process.env.NODE_ENV,
-        baseURL: mpesaConfig.appBaseURL
+        baseURL: mpesaConfig.appBaseURL,
       });
 
       logger.info('Server ready to receive M-Pesa callbacks', {
         confirmation: mpesaConfig.getCallbackURLs().confirmation,
-        validation: mpesaConfig.getCallbackURLs().validation
       });
     });
   } catch (error) {
@@ -104,5 +104,4 @@ process.on('SIGINT', () => {
   process.exit(0);
 });
 
-// Start the server
 startServer();

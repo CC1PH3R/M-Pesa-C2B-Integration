@@ -1,46 +1,47 @@
-/**
- * Simple logger utility for debugging and monitoring
- */
+interface LogData {
+  [key: string]: unknown;
+}
 
 const logger = {
-  info: (message, data = {}) => {
+  info: (message: string, data: LogData = {}): void => {
     console.log(JSON.stringify({
       level: 'INFO',
       timestamp: new Date().toISOString(),
       message,
-      ...data
+      ...data,
     }));
   },
 
-  error: (message, error = {}) => {
+  error: (message: string, error: unknown = {}): void => {
+    const err = error as Error;
     console.error(JSON.stringify({
       level: 'ERROR',
       timestamp: new Date().toISOString(),
       message,
-      error: error.message || error,
-      stack: error.stack
+      error: err.message ?? error,
+      stack: err.stack,
     }));
   },
 
-  warn: (message, data = {}) => {
+  warn: (message: string, data: LogData = {}): void => {
     console.warn(JSON.stringify({
       level: 'WARN',
       timestamp: new Date().toISOString(),
       message,
-      ...data
+      ...data,
     }));
   },
 
-  debug: (message, data = {}) => {
+  debug: (message: string, data: LogData = {}): void => {
     if (process.env.NODE_ENV !== 'production') {
       console.log(JSON.stringify({
         level: 'DEBUG',
         timestamp: new Date().toISOString(),
         message,
-        ...data
+        ...data,
       }));
     }
-  }
+  },
 };
 
-module.exports = logger;
+export default logger;

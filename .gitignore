@@ -7,3 +7,6 @@
 #Logs
 logs/
 *.log
+
+#Build Output
+/dist
