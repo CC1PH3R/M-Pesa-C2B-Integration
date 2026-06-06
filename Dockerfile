@@ -4,18 +4,22 @@ FROM node:18
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package files and prisma schema
 COPY package*.json ./
 COPY prisma ./prisma/
+COPY tsconfig.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install all dependencies (including devDeps for build)
+RUN npm ci
 
-# Generate Prisma Client
-RUN npx prisma generate
+# Copy application source
+COPY src ./src
 
-# Copy application code
-COPY . .
+# Build TypeScript and generate Prisma Client
+RUN npm run build
+
+# Prune dev dependencies
+RUN npm prune --production
 
 # Expose port
 EXPOSE 3000
