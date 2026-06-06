@@ -163,6 +163,8 @@ Railway will automatically:
 ### 1. Health Check
 ```http
 GET /api/ganji/health
+￼
+￼￼
 ```
 
 ### 2. Register C2B URLs with M-Pesa
@@ -353,7 +355,7 @@ Use neutral terms like: webhook, callback, notify, confirm, transaction
 ### Development (Local)
 ```bash
 npm run dev
-```
+```https://your-app.railway.app
 - Uses `nodemon` for auto-reload
 - Set `NODE_ENV=development`
 
