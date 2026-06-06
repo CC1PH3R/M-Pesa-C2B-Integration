@@ -1,7 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import { PrismaClient } from '@prisma/client';
 import mpesaConfig from '../config/mpesa';
-import logger from '../utils/logger';
 
 const prisma = new PrismaClient();
 
@@ -41,14 +40,11 @@ class MpesaService {
         const timeRemaining = Math.floor(
           (cachedToken.expiresAt.getTime() - Date.now()) / 1000,
         );
-        logger.info('Using cached access token', {
-          expiresAt: cachedToken.expiresAt.toISOString(),
-          secondsRemaining: timeRemaining,
-        });
+        console.log('Using cached access token', cachedToken.expiresAt.toISOString(), `${timeRemaining}s remaining`);
         return cachedToken.token;
       }
 
-      logger.info('Generating new access token');
+      console.log('Generating new access token');
 
       await prisma.accessToken.deleteMany({});
 
@@ -56,11 +52,7 @@ class MpesaService {
         `${mpesaConfig.consumerKey}:${mpesaConfig.consumerSecret}`,
       ).toString('base64');
 
-      logger.info('Making auth request', {
-        url: `${mpesaConfig.baseURL}${mpesaConfig.endpoints.auth}`,
-        consumerKeyLength: mpesaConfig.consumerKey?.length,
-        consumerSecretLength: mpesaConfig.consumerSecret?.length,
-      });
+      console.log('Making auth request', `${mpesaConfig.baseURL}${mpesaConfig.endpoints.auth}`);
 
       const response = await axios.get<{ access_token: string; expires_in: number }>(
         `${mpesaConfig.baseURL}${mpesaConfig.endpoints.auth}`,
@@ -73,11 +65,7 @@ class MpesaService {
         },
       );
 
-      logger.info('Auth response received', {
-        status: response.status,
-        hasAccessToken: !!response.data.access_token,
-        expiresIn: response.data.expires_in,
-      });
+      console.log('Auth response received', response.status, `expires_in=${response.data.expires_in}`);
 
       const { access_token, expires_in } = response.data;
 
@@ -94,21 +82,12 @@ class MpesaService {
         },
       });
 
-      logger.info('Access token generated and cached', {
-        expiresAt: expiresAt.toISOString(),
-        expiresInSeconds: expires_in,
-        tokenLength: access_token.length,
-      });
+      console.log('Access token generated and cached, expires at', expiresAt.toISOString());
 
       return access_token;
     } catch (error) {
       const axiosError = error as AxiosError;
-      logger.error('Failed to get access token', {
-        message: axiosError.message,
-        response: axiosError.response?.data,
-        status: axiosError.response?.status,
-        url: axiosError.config?.url,
-      });
+      console.error('Failed to get access token', axiosError.message, axiosError.response?.data);
       throw new Error(`M-Pesa auth failed: ${axiosError.message}`);
     }
   }
@@ -116,7 +95,7 @@ class MpesaService {
   async registerC2BUrls(): Promise<unknown> {
     try {
       const token = await this.getAccessToken();
-      logger.info('Access token obtained for C2B v2 registration');
+      console.log('Access token obtained for C2B v2 registration');
 
       const { confirmation } = mpesaConfig.getCallbackURLs();
 
@@ -140,15 +119,10 @@ class MpesaService {
         ValidationURL: confirmation,
       };
 
-      logger.info('Attempting C2B v2 URL registration', {
-        shortCode: payload.ShortCode,
-        confirmationURL: payload.ConfirmationURL,
-        responseType: payload.ResponseType,
-        apiVersion: 'v2',
-      });
+      console.log('Attempting C2B v2 URL registration', payload.ShortCode, payload.ConfirmationURL);
 
       const url = `${mpesaConfig.baseURL}${mpesaConfig.endpoints.c2bRegister}`;
-      logger.info('Calling M-Pesa C2B v2 API', { url });
+      console.log('Calling M-Pesa C2B v2 API', url);
 
       const response = await axios.post<Record<string, unknown>>(url, payload, {
         headers: {
@@ -158,10 +132,7 @@ class MpesaService {
         timeout: 30000,
       });
 
-      logger.info('M-Pesa C2B v2 response received', {
-        status: response.status,
-        data: response.data,
-      });
+      console.log('M-Pesa C2B v2 response received', response.status, response.data);
 
       const responseData = response.data;
       const success =
@@ -182,27 +153,15 @@ class MpesaService {
       });
 
       if (success) {
-        logger.info('C2B v2 URLs registered successfully');
+        console.log('C2B v2 URLs registered successfully');
       } else {
-        logger.warn('C2B v2 registration completed but may have issues', {
-          data: responseData,
-        });
+        console.warn('C2B v2 registration completed but may have issues', responseData);
       }
 
       return responseData;
     } catch (error) {
       const axiosError = error as AxiosError<Record<string, unknown>>;
-      logger.error('Failed to register C2B v2 URLs', {
-        message: axiosError.message,
-        code: axiosError.code,
-        status: axiosError.response?.status,
-        statusText: axiosError.response?.statusText,
-        errorCode: axiosError.response?.data?.['errorCode'],
-        errorMessage: axiosError.response?.data?.['errorMessage'],
-        data: axiosError.response?.data,
-        url: axiosError.config?.url,
-        method: axiosError.config?.method,
-      });
+      console.error('Failed to register C2B v2 URLs', axiosError.message, axiosError.response?.data);
 
       try {
         const { confirmation } = mpesaConfig.getCallbackURLs();
@@ -221,7 +180,7 @@ class MpesaService {
           },
         });
       } catch (dbError) {
-        logger.error('Failed to log registration error', dbError);
+        console.error('Failed to log registration error', dbError);
       }
 
       throw error;
@@ -251,15 +210,11 @@ class MpesaService {
         },
       });
 
-      logger.info('Transaction saved successfully', {
-        id: transaction.id,
-        transID: transaction.transID,
-        amount: String(transaction.transAmount),
-      });
+      console.log('Transaction saved successfully', transaction.id, transaction.transID);
 
       return transaction;
     } catch (error) {
-      logger.error('Failed to save transaction', error);
+      console.error('Failed to save transaction', error);
 
       try {
         await prisma.transaction.create({
@@ -276,7 +231,7 @@ class MpesaService {
           },
         });
       } catch (saveError) {
-        logger.error('Failed to save error transaction', saveError);
+        console.error('Failed to save error transaction', saveError);
       }
 
       throw error;
@@ -292,7 +247,7 @@ class MpesaService {
         take: limit,
       });
     } catch (error) {
-      logger.error('Failed to fetch transactions', error);
+      console.error('Failed to fetch transactions', error);
       throw error;
     }
   }
@@ -303,7 +258,7 @@ class MpesaService {
         where: { transID },
       });
     } catch (error) {
-      logger.error('Failed to fetch transaction', error);
+      console.error('Failed to fetch transaction', error);
       throw error;
     }
   }
@@ -324,7 +279,7 @@ class MpesaService {
         BillRefNumber: billRefNumber,
       };
 
-      logger.info('Simulating C2B payment', payload);
+      console.log('Simulating C2B payment', payload);
 
       const response = await axios.post<unknown>(
         `${mpesaConfig.baseURL}${mpesaConfig.endpoints.c2bSimulate}`,
@@ -337,10 +292,10 @@ class MpesaService {
         },
       );
 
-      logger.info('C2B simulation response', { data: response.data });
+      console.log('C2B simulation response', response.data);
       return response.data;
     } catch (error) {
-      logger.error('Failed to simulate C2B', error);
+      console.error('Failed to simulate C2B', error);
       throw error;
     }
   }

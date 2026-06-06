@@ -3,17 +3,13 @@ import axios, { AxiosError } from 'axios';
 import { PrismaClient } from '@prisma/client';
 import mpesaService from '../services/mpesaService';
 import mpesaConfig from '../config/mpesa';
-import logger from '../utils/logger';
 
 const prisma = new PrismaClient();
 
 class MpesaController {
   async registerUrls(req: Request, res: Response): Promise<Response> {
     try {
-      logger.info('Register URLs endpoint called', {
-        method: req.method,
-        url: req.url,
-      });
+      console.log('Register URLs endpoint called', req.method, req.url);
 
       const result = await mpesaService.registerC2BUrls();
 
@@ -24,11 +20,7 @@ class MpesaController {
       });
     } catch (error) {
       const axiosError = error as AxiosError<Record<string, unknown>>;
-      logger.error('Register URLs controller error', {
-        message: axiosError.message,
-        response: axiosError.response?.data,
-        status: axiosError.response?.status,
-      });
+      console.error('Register URLs controller error', axiosError.message, axiosError.response?.data);
 
       return res.status(500).json({
         success: false,
@@ -42,7 +34,7 @@ class MpesaController {
 
   async confirmation(req: Request, res: Response): Promise<void> {
     try {
-      logger.info('Confirmation callback received', req.body);
+      console.log('Confirmation callback received', req.body);
 
       res.status(200).json({
         ResultCode: 0,
@@ -52,13 +44,13 @@ class MpesaController {
       setImmediate(async () => {
         try {
           await mpesaService.saveConfirmation(req.body);
-          logger.info('Transaction processed successfully');
+          console.log('Transaction processed successfully');
         } catch (error) {
-          logger.error('Failed to process confirmation', error);
+          console.error('Failed to process confirmation', error);
         }
       });
     } catch (error) {
-      logger.error('Confirmation callback error', error);
+      console.error('Confirmation callback error', error);
 
       res.status(200).json({
         ResultCode: 0,
@@ -78,7 +70,7 @@ class MpesaController {
         data: transactions,
       });
     } catch (error) {
-      logger.error('Get transactions controller error', error);
+      console.error('Get transactions controller error', error);
 
       return res.status(500).json({
         success: false,
@@ -105,7 +97,7 @@ class MpesaController {
         data: transaction,
       });
     } catch (error) {
-      logger.error('Get transaction controller error', error);
+      console.error('Get transaction controller error', error);
 
       return res.status(500).json({
         success: false,
@@ -138,7 +130,7 @@ class MpesaController {
         data: result,
       });
     } catch (error) {
-      logger.error('Simulate payment controller error', error);
+      console.error('Simulate payment controller error', error);
 
       return res.status(500).json({
         success: false,
@@ -150,10 +142,10 @@ class MpesaController {
 
   async testAuth(req: Request, res: Response): Promise<Response> {
     try {
-      logger.info('Testing authentication with C2B v2');
+      console.log('Testing authentication with C2B v2');
 
       await prisma.accessToken.deleteMany({});
-      logger.info('Cleared cached tokens');
+      console.log('Cleared cached tokens');
 
       const token = await mpesaService.getAccessToken();
 
@@ -205,7 +197,7 @@ class MpesaController {
       }
     } catch (error) {
       const axiosError = error as AxiosError<Record<string, unknown>>;
-      logger.error('Test auth failed', error);
+      console.error('Test auth failed', error);
 
       return res.status(500).json({
         success: false,

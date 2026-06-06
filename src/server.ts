@@ -7,7 +7,6 @@ import cors from 'cors';
 import morgan from 'morgan';
 import mpesaRoutes from './routes/mpesa.routes';
 import mpesaConfig from './config/mpesa';
-import logger from './utils/logger';
 
 const app = express();
 const PORT = process.env.PORT ?? 3000;
@@ -18,16 +17,6 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('combined'));
-
-// Request logging
-app.use((req: Request, _res: Response, next: NextFunction) => {
-  logger.info('Incoming request', {
-    method: req.method,
-    path: req.path,
-    ip: req.ip,
-  });
-  next();
-});
 
 // Routes
 // Using '/api/ganji' instead of '/api/mpesa' to comply with Daraja C2B URL restrictions
@@ -62,7 +51,7 @@ interface HttpError extends Error {
 }
 
 app.use((err: HttpError, _req: Request, res: Response, _next: NextFunction) => {
-  logger.error('Server error', err);
+  console.error('Server error', err);
 
   res.status(err.status ?? 500).json({
     success: false,
@@ -74,33 +63,26 @@ app.use((err: HttpError, _req: Request, res: Response, _next: NextFunction) => {
 async function startServer(): Promise<void> {
   try {
     mpesaConfig.validate();
-    logger.info('M-Pesa configuration validated');
+    console.log('M-Pesa configuration validated');
 
     app.listen(PORT, () => {
-      logger.info('Server started successfully', {
-        port: PORT,
-        environment: process.env.NODE_ENV,
-        baseURL: mpesaConfig.appBaseURL,
-      });
-
-      logger.info('Server ready to receive M-Pesa callbacks', {
-        confirmation: mpesaConfig.getCallbackURLs().confirmation,
-      });
+      console.log(`Server started on port ${PORT} [${process.env.NODE_ENV ?? 'development'}]`);
+      console.log(`Callback URL: ${mpesaConfig.getCallbackURLs().confirmation}`);
     });
   } catch (error) {
-    logger.error('Failed to start server', error);
+    console.error('Failed to start server', error);
     process.exit(1);
   }
 }
 
 // Handle graceful shutdown
 process.on('SIGTERM', () => {
-  logger.info('SIGTERM received, shutting down gracefully');
+  console.log('SIGTERM received, shutting down gracefully');
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
-  logger.info('SIGINT received, shutting down gracefully');
+  console.log('SIGINT received, shutting down gracefully');
   process.exit(0);
 });
 
