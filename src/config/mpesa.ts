@@ -34,7 +34,7 @@ const mpesaConfig: MpesaConfig = {
   shortcode: process.env.MPESA_SHORTCODE?.trim(),
   passkey: process.env.MPESA_PASSKEY?.trim(),
 
-  baseURL: process.env.MPESA_BASE_URL ?? 'https://sandbox.safaricom.co.ke',
+  baseURL: process.env.MPESA_BASE_URL ?? 'https://api.safaricom.co.ke',
   appBaseURL: process.env.APP_BASE_URL,
   responseType: process.env.MPESA_RESPONSE_TYPE ?? 'Completed',
 
@@ -68,7 +68,7 @@ const mpesaConfig: MpesaConfig = {
   },
 
   validate(): boolean {
-    const required = ['consumerKey', 'consumerSecret', 'shortcode', 'appBaseURL'];
+    const required = ['consumerKey', 'consumerSecret', 'shortcode', 'passkey', 'appBaseURL'];
     const self = this as unknown as Record<string, unknown>;
     const missing = required.filter((key) => !self[key]);
 

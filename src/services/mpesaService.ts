@@ -393,8 +393,8 @@ class MpesaService {
           checkoutRequestID: response.data.CheckoutRequestID,
           phoneNumber,
           amount,
-          accountRef,
-          description,
+          accountRef: accountRef.substring(0, 12),
+          description: description.substring(0, 13),
           responseCode: response.data.ResponseCode,
           responseDescription: response.data.ResponseDescription,
           customerMessage: response.data.CustomerMessage,
@@ -488,8 +488,8 @@ class MpesaService {
         phoneNumber = find('PhoneNumber')?.toString();
       }
 
-      await prisma.stkPushRequest.updateMany({
-        where: { checkoutRequestID },
+      const updated = await prisma.stkPushRequest.updateMany({
+        where: { checkoutRequestID, merchantRequestID },
         data: {
           resultCode,
           resultDesc,
@@ -500,6 +500,14 @@ class MpesaService {
           callbackReceivedAt: new Date(),
         },
       });
+
+      if (updated.count === 0) {
+        console.warn(
+          'STK callback matched no records — possible spoofed or duplicate callback',
+          { checkoutRequestID, merchantRequestID },
+        );
+        return;
+      }
 
       console.log(
         resultCode === 0
@@ -513,9 +521,10 @@ class MpesaService {
   }
 
   async getStkPushRequests(limit = 50) {
+    const take = Math.min(Math.max(limit, 1), 100);
     return prisma.stkPushRequest.findMany({
       orderBy: { createdAt: 'desc' },
-      take: limit,
+      take,
     });
   }
 

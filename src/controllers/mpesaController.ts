@@ -229,7 +229,7 @@ class MpesaController {
         description?: string;
       };
 
-      if (!phoneNumber || !amount || !accountRef) {
+      if (!phoneNumber || amount == null || !accountRef) {
         return res.status(400).json({
           success: false,
           message: 'phoneNumber, amount and accountRef are required',
@@ -244,10 +244,10 @@ class MpesaController {
         });
       }
 
-      if (amount < 1) {
+      if (!Number.isInteger(amount) || amount < 1) {
         return res.status(400).json({
           success: false,
-          message: 'amount must be at least 1 KES',
+          message: 'amount must be a whole number of at least 1 KES',
         });
       }
 
@@ -329,7 +329,8 @@ class MpesaController {
 
   async getStkRequests(req: Request, res: Response): Promise<Response> {
     try {
-      const limit = parseInt((req.query['limit'] as string) ?? '50') || 50;
+      const limitRaw = parseInt((req.query['limit'] as string) ?? '50', 10);
+      const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 100) : 50;
       const requests = await mpesaService.getStkPushRequests(limit);
 
       return res.status(200).json({
