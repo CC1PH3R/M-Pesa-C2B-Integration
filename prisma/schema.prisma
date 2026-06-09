@@ -66,3 +66,39 @@ model AccessToken {
   expiresAt   DateTime
   createdAt   DateTime @default(now())
 }
+
+// STK Push (Lipa Na M-Pesa / M-Pesa Express) Requests
+model StkPushRequest {
+  id                  String    @id @default(uuid())
+
+  // Identifiers returned by Safaricom on initiation
+  merchantRequestID   String    @unique
+  checkoutRequestID   String    @unique
+
+  // Request details
+  phoneNumber         String
+  amount              Decimal   @db.Decimal(10, 2)
+  accountRef          String
+  description         String
+
+  // Initiation response
+  responseCode        String
+  responseDescription String
+  customerMessage     String
+
+  // Callback data (populated when Safaricom sends the async result)
+  resultCode          Int?
+  resultDesc          String?
+  mpesaReceiptNumber  String?
+  transactionDate     String?
+  callbackPhoneNumber String?
+  rawCallback         Json?
+  callbackReceivedAt  DateTime?
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([checkoutRequestID])
+  @@index([phoneNumber])
+  @@index([createdAt])
+}

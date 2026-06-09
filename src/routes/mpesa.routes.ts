@@ -66,4 +66,31 @@ router.post('/simulate', (req: Request, res: Response) =>
   mpesaController.simulate(req, res),
 );
 
+// ─────────────────────────────────────────────
+// STK Push (Lipa Na M-Pesa / M-Pesa Express)
+// ─────────────────────────────────────────────
+
+// Initiate STK Push — sends payment prompt to customer's phone
+router.post('/stk/push', (req: Request, res: Response) =>
+  mpesaController.stkPush(req, res),
+);
+
+// Query status of an STK Push (use ~10s after initiation if no callback yet)
+router.post('/stk/query', (req: Request, res: Response) =>
+  mpesaController.stkQuery(req, res),
+);
+
+// Safaricom async STK Push callback (called by M-Pesa, not by your frontend)
+router.post('/stk/callback', (req: Request, res: Response) =>
+  mpesaController.stkCallback(req, res),
+);
+
+// STK Push request records
+router.get('/stk/requests', (req: Request, res: Response) =>
+  mpesaController.getStkRequests(req, res),
+);
+router.get('/stk/requests/:checkoutRequestID', (req: Request, res: Response) =>
+  mpesaController.getStkRequest(req, res),
+);
+
 export default router;
