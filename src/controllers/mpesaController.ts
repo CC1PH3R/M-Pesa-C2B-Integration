@@ -1,8 +1,7 @@
 import { Request, Response } from 'express';
-import axios, { AxiosError } from 'axios';
+import { AxiosError } from 'axios';
 import { PrismaClient } from '@prisma/client';
 import mpesaService from '../services/mpesaService';
-import mpesaConfig from '../config/mpesa';
 
 const prisma = new PrismaClient();
 
@@ -140,68 +139,30 @@ class MpesaController {
     }
   }
 
-  async testAuth(req: Request, res: Response): Promise<Response> {
+  async testAuth(_req: Request, res: Response): Promise<Response> {
     try {
-      console.log('Testing authentication with C2B v2');
+      console.log('Testing authentication');
 
       await prisma.accessToken.deleteMany({});
       console.log('Cleared cached tokens');
 
       const token = await mpesaService.getAccessToken();
 
-      try {
-        const testResponse = await axios.post<Record<string, unknown>>(
-          `${mpesaConfig.baseURL}${mpesaConfig.endpoints.c2bRegister}`,
-          {
-            ShortCode: mpesaConfig.shortcode,
-            ResponseType: mpesaConfig.responseType,
-            ConfirmationURL: `${mpesaConfig.appBaseURL}/api/ganji/confirmation`,
-            ValidationURL: `${mpesaConfig.appBaseURL}/api/ganji/confirmation`,
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-            timeout: 30000,
-          },
-        );
-
-        return res.status(200).json({
-          success: true,
-          message: 'Token is valid and C2B v2 registration successful',
-          apiVersion: 'v2',
-          tokenInfo: {
-            length: token.length,
-            prefix: token.substring(0, 20) + '...',
-          },
-          mpesaResponse: testResponse.data,
-        });
-      } catch (apiError) {
-        const axiosApiError = apiError as AxiosError<Record<string, unknown>>;
-        return res.status(200).json({
-          success: false,
-          message: 'Token generated but C2B v2 API call failed',
-          apiVersion: 'v2',
-          tokenInfo: {
-            length: token.length,
-            prefix: token.substring(0, 20) + '...',
-          },
-          error: {
-            status: axiosApiError.response?.status,
-            code: axiosApiError.response?.data?.['errorCode'],
-            message: axiosApiError.response?.data?.['errorMessage'],
-            fullError: axiosApiError.response?.data,
-          },
-        });
-      }
+      return res.status(200).json({
+        success: true,
+        message: 'Authentication successful',
+        tokenInfo: {
+          length: token.length,
+          prefix: token.substring(0, 20) + '...',
+        },
+      });
     } catch (error) {
       const axiosError = error as AxiosError<Record<string, unknown>>;
       console.error('Test auth failed', error);
 
       return res.status(500).json({
         success: false,
-        message: 'Authentication test failed',
+        message: 'Authentication failed',
         error: axiosError.message,
         details: axiosError.response?.data,
       });
