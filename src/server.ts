@@ -5,7 +5,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import morgan from 'morgan';
-import mpesaRoutes from './routes/mpesa.routes';
+import routes from './routes';
 import mpesaConfig from './config/mpesa';
 
 const app = express();
@@ -20,7 +20,7 @@ app.use(morgan('combined'));
 
 // Routes
 // Using '/api/ganji' instead of '/api/mpesa' to comply with Daraja C2B URL restrictions
-app.use('/api/ganji', mpesaRoutes);
+app.use('/api/ganji', routes);
 
 // Root endpoint
 app.get('/', (_req: Request, res: Response) => {
@@ -29,10 +29,18 @@ app.get('/', (_req: Request, res: Response) => {
     message: 'M-Pesa C2B Test API',
     version: '1.0.0',
     endpoints: {
-      health: '/api/ganji/health',
+      health: 'GET /api/ganji/health',
+      testAuth: 'GET /api/ganji/test-auth',
+      // C2B
       register: 'POST /api/ganji/register',
+      confirmation: 'POST /api/ganji/confirmation',
       transactions: 'GET /api/ganji/transactions',
       simulate: 'POST /api/ganji/simulate',
+      // STK Push
+      stkPush: 'POST /api/ganji/stk/push',
+      stkQuery: 'POST /api/ganji/stk/query',
+      stkCallback: 'POST /api/ganji/stk/callback',
+      stkRequests: 'GET /api/ganji/stk/requests',
     },
   });
 });

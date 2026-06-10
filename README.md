@@ -1,202 +1,172 @@
-# M-Pesa C2B Test Application
+# M-Pesa C2B + STK Push Integration
 
-A comprehensive Node.js application for testing M-Pesa Daraja C2B (Customer to Business) API integration with PostgreSQL database storage.
+A Node.js/TypeScript application for integrating with the M-Pesa Daraja API, supporting C2B (Customer to Business) payments and STK Push (Lipa Na M-Pesa). Stores all transactions in PostgreSQL via Prisma ORM.
 
 ## Features
 
-- ✅ M-Pesa C2B API v2 integration (Production ready)
-- ✅ Secure credential management with environment variables
-- ✅ Access token caching to minimize API calls
-- ✅ Webhook handler for confirmation callbacks
-- ✅ PostgreSQL database with Prisma ORM
-- ✅ Complete transaction logging and storage
-- ✅ Payment simulation endpoint for testing
-- ✅ Docker containerization
-- ✅ Railway deployment ready
-- ✅ Daraja URL validation compliance (no blocked keywords)
+- M-Pesa C2B API v2 integration (PayBill)
+- STK Push / Lipa Na M-Pesa (M-Pesa Express)
+- Access token caching to minimise Daraja API calls
+- Async webhook handlers — responds to M-Pesa immediately, processes in background
+- PostgreSQL storage with full audit trail for every transaction and STK request
+- Payment simulation endpoint for sandbox testing
+- Docker + Railway deployment ready
 
 ## Prerequisites
 
-- Node.js 18+ 
+- Node.js 18+
 - PostgreSQL database
-- M-Pesa Daraja API credentials (Consumer Key & Secret)
-- M-Pesa Paybill Shortcode
+- M-Pesa Daraja API credentials (Consumer Key, Secret, Shortcode, Passkey)
 - HTTPS domain (Railway provides this automatically)
 
 ## Project Structure
 
 ```
-mpesa-c2b-test/
-├── src/
-│   ├── server.js              # Main application entry
-│   ├── config/
-│   │   └── mpesa.js           # M-Pesa configuration
-│   ├── controllers/
-│   │   └── mpesaController.js # Request handlers
-│   ├── services/
-│   │   └── mpesaService.js    # M-Pesa API logic
-│   ├── routes/
-│   │   └── mpesa.routes.js    # API routes
-│   └── utils/
-│       └── logger.js          # Logging utility
-├── prisma/
-│   └── schema.prisma          # Database schema
-├── Dockerfile                 # Docker configuration
-├── package.json
-└── .env                       # Environment variables
+src/
+├── server.ts               # Express app, middleware, startup
+├── config/
+│   └── mpesa.ts            # Daraja API config, URL helpers, STK password generator
+├── lib/
+│   └── prisma.ts           # Shared Prisma client singleton
+├── services/
+│   ├── auth.service.ts     # Access token management (fetch + cache)
+│   ├── c2b.service.ts      # C2B registration, callbacks, transactions
+│   └── stkpush.service.ts  # STK Push initiation, query, callback handling
+├── controllers/
+│   ├── auth.controller.ts  # health, test-auth
+│   ├── c2b.controller.ts   # register, confirmation, transactions, simulate
+│   └── stkpush.controller.ts # stk/push, stk/query, stk/callback, stk/requests
+└── routes/
+    ├── index.ts            # Combines all route groups
+    ├── auth.routes.ts      # /health, /test-auth, /debug-config
+    ├── c2b.routes.ts       # /register, /confirmation, /transactions, /simulate
+    └── stkpush.routes.ts   # /stk/push, /stk/query, /stk/callback, /stk/requests
+prisma/
+└── schema.prisma           # Transaction, StkPushRequest, AccessToken, UrlRegistration
 ```
 
-## Important Daraja C2B v2 Restrictions
+## Important: Daraja URL Restriction
 
 ### API Base Path: `/api/ganji`
 
-**Original intended path:** `/api/mpesa`  
-**Current path:** `/api/ganji`
+Daraja C2B v2 rejects callback URLs containing these keywords: `mpesa`, `safaricom`, `money`, `pay`, `payment`.
 
-**Reason:** Daraja C2B v2 URL validation rejects callback URLs containing these keywords:
-- `mpesa`
-- `safaricom`
-- `money`
-- `pay`
-- `payment`
+This app uses `/api/ganji` (slang for money) as the base path to comply.
 
-**Solution:** Using `ganji` (slang for money) as the base API path to comply with Daraja restrictions.
+- ❌ `https://yourapp.com/api/mpesa/confirmation`
+- ✅ `https://yourapp.com/api/ganji/confirmation`
 
-**Documentation:** [Daraja C2B API Reference](https://developer.safaricom.co.ke/APIs/MpesaExpressSimulate)
+## Setup
 
-### API Version
-This app uses **C2B v2** (`/c2b/v2/registerurl`). Most production shortcodes require v2.
-
-### Example URL Validation
-- ❌ `https://yourapp.com/api/mpesa/confirmation` (contains 'mpesa')
-- ❌ `https://yourapp.com/api/payment/callback` (contains 'payment')  
-- ✅ `https://yourapp.com/api/ganji/confirmation` (compliant)
-
-## Setup Instructions
-
-### 1. Clone and Install
+### 1. Install
 
 ```bash
-git clone <your-repo>
+git clone https://github.com/CC1PH3R/M-Pesa-C2B-Integration.git
 cd mpesa-c2b-test
 npm install
 ```
 
-### 2. Configure Environment Variables
-
-Copy `.env.example` to `.env`:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` with your credentials:
+### 2. Environment Variables
 
 ```env
 PORT=3000
 NODE_ENV=production
 DATABASE_URL="postgresql://user:password@host:5432/dbname"
+
+# Daraja credentials
 MPESA_CONSUMER_KEY=your_consumer_key
 MPESA_CONSUMER_SECRET=your_consumer_secret
 MPESA_SHORTCODE=your_paybill_shortcode
+MPESA_PASSKEY=your_stk_passkey
 MPESA_BASE_URL=https://api.safaricom.co.ke
-APP_BASE_URL=https://your-app.railway.app
 MPESA_RESPONSE_TYPE=Completed
+
+# Your deployed app URL (no trailing slash)
+APP_BASE_URL=https://your-app.railway.app
 ```
 
-### 3. Setup Database
+### 3. Database
 
 ```bash
-# Generate Prisma Client
 npx prisma generate
-
-# Run migrations
-npx prisma migrate dev --name init
+npx prisma migrate deploy
 ```
 
-### 4. Run Locally
+### 4. Run
 
 ```bash
+# Development
+npm run dev
+
+# Production
 npm start
 ```
 
-## Deployment to Railway
+## API Reference
 
-### Step 1: Create Railway Account
-- Go to [railway.app](https://railway.app)
-- Sign up with GitHub
+All endpoints are prefixed with `/api/ganji`.
 
-### Step 2: Create New Project
-1. Click "New Project"
-2. Select "Deploy from GitHub repo"
-3. Connect your repository
+---
 
-### Step 3: Add PostgreSQL Database
-1. In your project, click "New"
-2. Select "Database" → "PostgreSQL"
-3. Railway will automatically create a `DATABASE_URL` variable
+### Auth / Utility
 
-### Step 4: Configure Environment Variables
-In Railway dashboard, add these variables:
-- `PORT` = `3000`
-- `MPESA_CONSUMER_KEY`
-- `MPESA_CONSUMER_SECRET`
-- `MPESA_SHORTCODE`
-- `MPESA_BASE_URL` = `https://api.safaricom.co.ke`
-- `MPESA_RESPONSE_TYPE` = `Completed`
-- `NODE_ENV` = `production`
-
-### Step 5: Set APP_BASE_URL
-1. Railway will generate a domain like `your-app.railway.app`
-2. Copy this URL
-3. Add environment variable: `APP_BASE_URL` = `https://your-app.railway.app`
-4. Redeploy the app
-
-### Step 6: Deploy
-Railway will automatically:
-- Build the Docker image
-- Run database migrations
-- Start your application
-
-## API Endpoints
-
-### 1. Health Check
+#### Health Check
 ```http
 GET /api/ganji/health
 ```
+```json
+{ "success": true, "message": "M-Pesa C2B API is running", "timestamp": "..." }
+```
 
-### 2. Register C2B URLs with M-Pesa
+#### Test Authentication
+Forces a fresh token fetch (clears cache) and verifies your Daraja credentials.
+```http
+GET /api/ganji/test-auth
+```
+```json
+{ "success": true, "message": "Authentication successful", "tokenInfo": { "length": 40, "prefix": "abc123..." } }
+```
+
+#### Debug Config *(remove before production)*
+```http
+GET /api/ganji/debug-config
+```
+
+---
+
+### C2B (Customer to Business)
+
+#### Register C2B Callback URLs
+Run once after deployment to register your confirmation URL with Safaricom.
 ```http
 POST /api/ganji/register
 ```
-**Important:** Run this once after deployment to register your callback URLs with M-Pesa.
-
-Response:
 ```json
-{
-  "success": true,
-  "message": "C2B URLs registered successfully",
-  "data": {
-    "ResponseDescription": "Success"
-  }
-}
+{ "success": true, "message": "C2B URLs registered successfully", "data": { "ResponseDescription": "Success" } }
 ```
 
-### 3. Get All Transactions
+#### C2B Confirmation Callback *(called by M-Pesa)*
+Safaricom posts here when a customer pays via PayBill. Responds immediately, saves async.
+```http
+POST /api/ganji/confirmation
+```
+```json
+{ "ResultCode": 0, "ResultDesc": "Success" }
+```
+
+#### Get All C2B Transactions
 ```http
 GET /api/ganji/transactions?limit=50
 ```
-
-Response:
 ```json
 {
   "success": true,
-  "count": 10,
+  "count": 3,
   "data": [
     {
       "id": "uuid",
       "transID": "ABC123XYZ",
-      "transAmount": "1000.00",
+      "transAmount": "500.00",
       "msisdn": "254712345678",
       "billRefNumber": "account123",
       "transTime": "20241013143022",
@@ -206,12 +176,12 @@ Response:
 }
 ```
 
-### 4. Get Single Transaction
+#### Get Single C2B Transaction
 ```http
 GET /api/ganji/transactions/:transID
 ```
 
-### 5. Simulate Payment (Testing)
+#### Simulate C2B Payment *(sandbox only)*
 ```http
 POST /api/ganji/simulate
 Content-Type: application/json
@@ -223,146 +193,144 @@ Content-Type: application/json
 }
 ```
 
-### 6. M-Pesa Callbacks (Called by M-Pesa)
-- **Confirmation:** `POST /api/ganji/confirmation`
+---
 
-**Note:** Uses `/ganji/` instead of `/mpesa/` to comply with Daraja URL validation rules.
+### STK Push (Lipa Na M-Pesa / M-Pesa Express)
 
-## Testing the Integration
+#### Initiate STK Push
+Sends a payment prompt directly to the customer's phone.
+```http
+POST /api/ganji/stk/push
+Content-Type: application/json
 
-### Step 1: Register URLs
-After deployment, register your callback URLs:
+{
+  "phoneNumber": "254712345678",
+  "amount": 100,
+  "accountRef": "Order-001",
+  "description": "Payment"
+}
+```
 
+| Field | Required | Notes |
+|-------|----------|-------|
+| `phoneNumber` | Yes | Format: `2547XXXXXXXX` or `2541XXXXXXXX` |
+| `amount` | Yes | Whole number, minimum 1 KES |
+| `accountRef` | Yes | Shown to customer, max 12 chars |
+| `description` | No | Max 13 chars, defaults to `"Payment"` |
+
+```json
+{
+  "success": true,
+  "message": "STK Push initiated — customer will receive a payment prompt",
+  "data": {
+    "MerchantRequestID": "...",
+    "CheckoutRequestID": "ws_CO_...",
+    "ResponseCode": "0",
+    "CustomerMessage": "Success. Request accepted for processing"
+  }
+}
+```
+
+#### Query STK Push Status
+Poll the status of a push ~10 seconds after initiation if the callback has not arrived yet.
+```http
+POST /api/ganji/stk/query
+Content-Type: application/json
+
+{ "checkoutRequestID": "ws_CO_..." }
+```
+```json
+{
+  "success": true,
+  "message": "STK Push query complete",
+  "data": { "ResultCode": "0", "ResultDesc": "The service request is processed successfully." }
+}
+```
+
+#### STK Push Callback *(called by M-Pesa)*
+Safaricom posts here after the customer approves or cancels. Responds immediately, updates DB async.
+```http
+POST /api/ganji/stk/callback
+```
+```json
+{ "ResultCode": 0, "ResultDesc": "Success" }
+```
+
+#### Get All STK Push Requests
+```http
+GET /api/ganji/stk/requests?limit=50
+```
+```json
+{
+  "success": true,
+  "count": 2,
+  "data": [
+    {
+      "id": "uuid",
+      "checkoutRequestID": "ws_CO_...",
+      "phoneNumber": "254712345678",
+      "amount": "100.00",
+      "resultCode": 0,
+      "mpesaReceiptNumber": "ABC123",
+      "createdAt": "2024-10-13T14:30:22Z"
+    }
+  ]
+}
+```
+
+#### Get Single STK Push Request
+```http
+GET /api/ganji/stk/requests/:checkoutRequestID
+```
+
+---
+
+## Railway Deployment
+
+1. Create a new project from your GitHub repo.
+2. Add a PostgreSQL database (Railway auto-creates `DATABASE_URL`).
+3. Add all environment variables from the [Setup](#2-environment-variables) section.
+4. Set `APP_BASE_URL` to your generated Railway domain (e.g. `https://your-app.railway.app`).
+5. Railway will build the Docker image, run migrations, and start the server.
+
+After first deploy, register your C2B URLs:
 ```bash
 curl -X POST https://your-app.railway.app/api/ganji/register
 ```
 
-### Step 2: Make a Real Payment
-1. Open M-Pesa on your phone
-2. Go to Lipa na M-Pesa → Pay Bill
-3. Enter your Business Number (Shortcode)
-4. Enter Account Number (can be anything)
-5. Enter Amount
-6. Enter your M-Pesa PIN
-7. Confirm
-
-### Step 3: Check Database
-```bash
-curl https://your-app.railway.app/api/ganji/transactions
-```
+---
 
 ## Database Schema
 
-### Transaction Table
-- `id` - Unique identifier
-- `transID` - M-Pesa transaction ID
-- `transAmount` - Payment amount
-- `msisdn` - Customer phone number
-- `billRefNumber` - Account number
-- `transTime` - Transaction timestamp
-- `rawCallback` - Full M-Pesa callback (JSON)
-- `processed` - Processing status
-- `createdAt` - Record creation time
+| Table | Purpose |
+|-------|---------|
+| `Transaction` | C2B payment confirmations from M-Pesa |
+| `StkPushRequest` | STK Push initiation + callback result |
+| `AccessToken` | Cached Daraja OAuth tokens |
+| `UrlRegistration` | Log of all C2B URL registration attempts |
 
-### AccessToken Table
-- Caches M-Pesa access tokens
-- Auto-expires based on M-Pesa's token lifetime
-
-### UrlRegistration Table
-- Logs all URL registration attempts
-- Useful for debugging callback issues
+---
 
 ## Troubleshooting
 
-### "Invalid ValidationURL" Error
-**Error:** `400.003.02 - Bad Request - Invalid ValidationURL - URL has the word MPESA`
+**`400.003.02 — Invalid ValidationURL (URL has the word MPESA)`**
+Your callback URL contains a blocked keyword. Change the base path to something neutral (this app uses `/api/ganji`).
 
-**Cause:** Daraja C2B v2 blocks URLs containing keywords like 'mpesa', 'safaricom', 'money'
+**Callbacks not received**
+- Confirm `APP_BASE_URL` is set correctly (https, no trailing slash).
+- Re-register: `POST /api/ganji/register`.
+- Check Railway logs for incoming POST requests.
 
-**Solution:** 
-- Use neutral path like `/api/webhook/confirmation`
-- Avoid blocked keywords in your domain or path
-- This app already handles this correctly
+**STK Push returns error but no callback**
+- Use `POST /api/ganji/stk/query` with the `checkoutRequestID` to poll the status.
+- `ResultCode: 1032` = cancelled by user. `ResultCode: 1037` = timed out.
 
-### Callbacks Not Received
-1. **Check URL registration:**
-   ```bash
-   curl https://your-app.railway.app/api/ganji/register
-   ```
+**401 / 403 auth errors**
+- Verify credentials in Daraja portal, ensure app is Active.
+- Check for extra whitespace: `GET /api/ganji/debug-config`.
+- Use `GET /api/ganji/test-auth` to force a fresh token.
 
-2. **Verify APP_BASE_URL is correct:**
-   - Should be `https://your-app.railway.app` (with https)
-   - No trailing slash
-
-3. **Check Railway logs:**
-   - Go to Railway dashboard → Deployments → Logs
-
-### 403 Errors
-- Ensure you're using `https://api.safaricom.co.ke` (with `api.` subdomain)
-- Verify your Consumer Key and Secret are correct
-- Check that your app is using C2B v2 (not v1)
-
-### 401 Authentication Errors
-- Verify credentials are from the correct Daraja app
-- Ensure app status is "Active" in Daraja portal
-- Check that credentials don't have extra whitespace
-- Some shortcodes only work with C2B v2
-
-### Database Connection Issues
-- Railway automatically provides `DATABASE_URL`
-- Ensure Prisma migrations ran: `npx prisma migrate deploy`
-
-## Important Notes
-
-### C2B API Version
-This app uses **C2B v2** which is required for most production shortcodes. The key differences:
-- v1: `/c2b/v1/registerurl`
-- v2: `/c2b/v2/registerurl` (stricter URL validation)
-
-### Validation Endpoint
-Validation is **optional** in C2B v2. This app uses the same URL for both validation and confirmation to simplify setup. All transactions are accepted by default.
-
-In production, implement validation logic in the confirmation handler:
-
-```javascript
-// Example: reject small amounts
-if (amount < 10) {
-  // Log but still save - you can't actually reject in confirmation
-  logger.warn('Amount below minimum', { amount });
-}
-```
-
-### Daraja URL Keywords
-**Critical:** Daraja rejects callback URLs containing:
-- mpesa, safaricom, money, pay, payment, cash, till, paybill
-
-Use neutral terms like: webhook, callback, notify, confirm, transaction
-
-### Response Time
-- M-Pesa requires callback responses **within 30 seconds**
-- The app responds immediately and processes asynchronously
-- Never do heavy processing before responding to M-Pesa
-
-### Security
-- Never commit `.env` file
-- Keep your Consumer Secret secure
-- Use Railway's environment variables for secrets
-
-## Development vs Production
-
-### Development (Local)
-```bash
-npm run dev
-```
-- Uses `nodemon` for auto-reload
-- Set `NODE_ENV=development`
-
-### Production (Railway)
-```bash
-npm start
-```
-- Set `NODE_ENV=production`
-- Runs database migrations automatically
+---
 
 ## Useful Commands
 
@@ -370,21 +338,12 @@ npm start
 # View database in browser
 npx prisma studio
 
-# Create new migration
+# Create a new migration
 npx prisma migrate dev --name migration_name
 
-# Reset database (caution!)
-npx prisma migrate reset
-
-# Check logs (Railway)
+# View Railway logs
 railway logs
 ```
-
-## Support
-
-For M-Pesa API issues:
-- Email: apisupport@safaricom.co.ke
-- Daraja Portal: https://developer.safaricom.co.ke
 
 ## License
 
