@@ -2,6 +2,9 @@ import axios, { AxiosError } from 'axios';
 import prisma from '../lib/prisma';
 import mpesaConfig from '../config/mpesa';
 import authService from './auth.service';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('c2b');
 
 export interface C2BCallbackData {
   TransactionType: string;
@@ -23,7 +26,7 @@ class C2BService {
   async registerC2BUrls(): Promise<unknown> {
     try {
       const token = await authService.getAccessToken();
-      console.log('Access token obtained for C2B v2 registration');
+      log.info('Access token obtained for C2B v2 registration');
 
       const { confirmation } = mpesaConfig.getCallbackURLs();
 
@@ -45,10 +48,10 @@ class C2BService {
         ValidationURL: confirmation,
       };
 
-      console.log('Attempting C2B v2 URL registration', payload.ShortCode, payload.ConfirmationURL);
+      log.info({ shortCode: payload.ShortCode, confirmationURL: payload.ConfirmationURL }, 'Attempting C2B v2 URL registration');
 
       const url = `${mpesaConfig.baseURL}${mpesaConfig.endpoints.c2bRegister}`;
-      console.log('Calling M-Pesa C2B v2 API', url);
+      log.info({ url }, 'Calling M-Pesa C2B v2 API');
 
       const response = await axios.post<Record<string, unknown>>(url, payload, {
         headers: {
@@ -58,7 +61,7 @@ class C2BService {
         timeout: 30000,
       });
 
-      console.log('M-Pesa C2B v2 response received', response.status, response.data);
+      log.info({ status: response.status, data: response.data }, 'M-Pesa C2B v2 response received');
 
       const responseData = response.data;
       const success =
@@ -77,15 +80,15 @@ class C2BService {
       });
 
       if (success) {
-        console.log('C2B v2 URLs registered successfully');
+        log.info('C2B v2 URLs registered successfully');
       } else {
-        console.warn('C2B v2 registration completed but may have issues', responseData);
+        log.warn({ responseData }, 'C2B v2 registration completed but may have issues');
       }
 
       return responseData;
     } catch (error) {
       const axiosError = error as AxiosError<Record<string, unknown>>;
-      console.error('Failed to register C2B v2 URLs', axiosError.message, axiosError.response?.data);
+      log.error({ err: axiosError, mpesaError: axiosError.response?.data }, 'Failed to register C2B v2 URLs');
 
       try {
         const { confirmation } = mpesaConfig.getCallbackURLs();
@@ -104,7 +107,7 @@ class C2BService {
           },
         });
       } catch (dbError) {
-        console.error('Failed to log registration error', dbError);
+        log.error({ err: dbError }, 'Failed to log registration error');
       }
 
       throw error;
@@ -134,10 +137,10 @@ class C2BService {
         },
       });
 
-      console.log('Transaction saved successfully', transaction.id, transaction.transID);
+      log.info({ id: transaction.id, transID: transaction.transID }, 'Transaction saved successfully');
       return transaction;
     } catch (error) {
-      console.error('Failed to save transaction', error);
+      log.error({ err: error }, 'Failed to save transaction');
 
       try {
         await prisma.transaction.create({
@@ -154,7 +157,7 @@ class C2BService {
           },
         });
       } catch (saveError) {
-        console.error('Failed to save error transaction', saveError);
+        log.error({ err: saveError }, 'Failed to save error transaction');
       }
 
       throw error;
@@ -168,7 +171,7 @@ class C2BService {
         take: limit,
       });
     } catch (error) {
-      console.error('Failed to fetch transactions', error);
+      log.error({ err: error }, 'Failed to fetch transactions');
       throw error;
     }
   }
@@ -177,7 +180,7 @@ class C2BService {
     try {
       return await prisma.transaction.findUnique({ where: { transID } });
     } catch (error) {
-      console.error('Failed to fetch transaction', error);
+      log.error({ err: error }, 'Failed to fetch transaction');
       throw error;
     }
   }
@@ -198,7 +201,7 @@ class C2BService {
         BillRefNumber: billRefNumber,
       };
 
-      console.log('Simulating C2B payment', payload);
+      log.info({ payload }, 'Simulating C2B payment');
 
       const response = await axios.post<unknown>(
         `${mpesaConfig.baseURL}${mpesaConfig.endpoints.c2bSimulate}`,
@@ -211,10 +214,10 @@ class C2BService {
         },
       );
 
-      console.log('C2B simulation response', response.data);
+      log.info({ data: response.data }, 'C2B simulation response');
       return response.data;
     } catch (error) {
-      console.error('Failed to simulate C2B', error);
+      log.error({ err: error }, 'Failed to simulate C2B');
       throw error;
     }
   }

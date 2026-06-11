@@ -1,6 +1,9 @@
 import { Request, Response } from 'express';
 import { AxiosError } from 'axios';
 import authService from '../services/auth.service';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('auth:controller');
 
 class AuthController {
   async health(_req: Request, res: Response): Promise<Response> {
@@ -13,10 +16,10 @@ class AuthController {
 
   async testAuth(_req: Request, res: Response): Promise<Response> {
     try {
-      console.log('Testing authentication');
+      log.info('Testing authentication');
 
       await authService.clearCachedTokens();
-      console.log('Cleared cached tokens');
+      log.info('Cleared cached tokens');
 
       const token = await authService.getAccessToken();
 
@@ -30,7 +33,7 @@ class AuthController {
       });
     } catch (error) {
       const axiosError = error as AxiosError<Record<string, unknown>>;
-      console.error('Test auth failed', error);
+      log.error({ err: error }, 'Test auth failed');
 
       return res.status(500).json({
         success: false,

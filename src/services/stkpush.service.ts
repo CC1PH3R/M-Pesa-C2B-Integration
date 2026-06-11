@@ -3,6 +3,9 @@ import { Prisma } from '@prisma/client';
 import prisma from '../lib/prisma';
 import mpesaConfig from '../config/mpesa';
 import authService from './auth.service';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('stkpush');
 
 type InputJsonValue = Prisma.InputJsonValue;
 
@@ -47,7 +50,7 @@ class StkPushService {
         TransactionDesc: description.substring(0, 13),
       };
 
-      console.log('Initiating STK Push', { shortcode, phoneNumber, amount, accountRef, timestamp });
+      log.info({ shortcode, phoneNumber, amount, accountRef, timestamp }, 'Initiating STK Push');
 
       const response = await axios.post<{
         MerchantRequestID: string;
@@ -67,7 +70,7 @@ class StkPushService {
         },
       );
 
-      console.log('STK Push initiated', response.data);
+      log.info({ data: response.data }, 'STK Push initiated');
 
       // Persist the request for later reconciliation via stkQuery
       await prisma.stkPushRequest.create({
@@ -87,7 +90,7 @@ class StkPushService {
       return response.data;
     } catch (error) {
       const axiosError = error as AxiosError<Record<string, unknown>>;
-      console.error('Failed to initiate STK Push', axiosError.message, axiosError.response?.data);
+      log.error({ err: axiosError, mpesaError: axiosError.response?.data }, 'Failed to initiate STK Push');
       throw error;
     }
   }
@@ -106,7 +109,7 @@ class StkPushService {
         CheckoutRequestID: checkoutRequestID,
       };
 
-      console.log('Querying STK Push status', checkoutRequestID);
+      log.info({ checkoutRequestID }, 'Querying STK Push status');
 
       const response = await axios.post<Record<string, unknown>>(
         `${mpesaConfig.baseURL}${mpesaConfig.endpoints.stkQuery}`,
@@ -120,11 +123,11 @@ class StkPushService {
         },
       );
 
-      console.log('STK Push query response', response.data);
+      log.info({ data: response.data }, 'STK Push query response');
       return response.data;
     } catch (error) {
       const axiosError = error as AxiosError<Record<string, unknown>>;
-      console.error('Failed to query STK Push status', axiosError.message, axiosError.response?.data);
+      log.error({ err: axiosError, mpesaError: axiosError.response?.data }, 'Failed to query STK Push status');
       throw error;
     }
   }
@@ -135,7 +138,7 @@ class StkPushService {
       const stkCallback = body?.['stkCallback'] as Record<string, unknown> | undefined;
 
       if (!stkCallback) {
-        console.error('Invalid STK callback structure', callbackBody);
+        log.error({ callbackBody }, 'Invalid STK callback structure');
         return;
       }
 
@@ -144,7 +147,7 @@ class StkPushService {
       const resultCode = stkCallback['ResultCode'] as number;
       const resultDesc = stkCallback['ResultDesc'] as string;
 
-      console.log('STK callback received', { merchantRequestID, checkoutRequestID, resultCode });
+      log.info({ merchantRequestID, checkoutRequestID, resultCode }, 'STK callback received');
 
       // Extract payment metadata when successful (ResultCode === 0)
       let mpesaReceiptNumber: string | undefined;
@@ -178,20 +181,20 @@ class StkPushService {
       });
 
       if (updated.count === 0) {
-        console.warn(
-          'STK callback matched no records — possible spoofed or duplicate callback',
+        log.warn(
           { checkoutRequestID, merchantRequestID },
+          'STK callback matched no records — possible spoofed or duplicate callback',
         );
         return;
       }
 
-      console.log(
-        resultCode === 0
-          ? `STK Push successful — receipt: ${mpesaReceiptNumber}`
-          : `STK Push failed — ${resultDesc}`,
-      );
+      if (resultCode === 0) {
+        log.info({ mpesaReceiptNumber }, 'STK Push successful');
+      } else {
+        log.warn({ resultCode, resultDesc }, 'STK Push failed');
+      }
     } catch (error) {
-      console.error('Failed to handle STK callback', error);
+      log.error({ err: error }, 'Failed to handle STK callback');
       throw error;
     }
   }

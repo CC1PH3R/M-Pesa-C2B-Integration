@@ -1,6 +1,9 @@
 import axios, { AxiosError } from 'axios';
 import prisma from '../lib/prisma';
 import mpesaConfig from '../config/mpesa';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('auth');
 
 class AuthService {
   async getAccessToken(): Promise<string> {
@@ -16,18 +19,18 @@ class AuthService {
         const timeRemaining = Math.floor(
           (cachedToken.expiresAt.getTime() - Date.now()) / 1000,
         );
-        console.log('Using cached access token', cachedToken.expiresAt.toISOString(), `${timeRemaining}s remaining`);
+        log.info({ expiresAt: cachedToken.expiresAt.toISOString(), remainingSecs: timeRemaining }, 'Using cached access token');
         return cachedToken.token;
       }
 
-      console.log('Generating new access token');
+      log.info('Generating new access token');
       await prisma.accessToken.deleteMany({});
 
       const auth = Buffer.from(
         `${mpesaConfig.consumerKey}:${mpesaConfig.consumerSecret}`,
       ).toString('base64');
 
-      console.log('Making auth request', `${mpesaConfig.baseURL}${mpesaConfig.endpoints.auth}`);
+      log.info({ url: `${mpesaConfig.baseURL}${mpesaConfig.endpoints.auth}` }, 'Making auth request');
 
       const response = await axios.get<{ access_token: string; expires_in: number }>(
         `${mpesaConfig.baseURL}${mpesaConfig.endpoints.auth}`,
@@ -40,7 +43,7 @@ class AuthService {
         },
       );
 
-      console.log('Auth response received', response.status, `expires_in=${response.data.expires_in}`);
+      log.info({ status: response.status, expiresIn: response.data.expires_in }, 'Auth response received');
 
       const { access_token, expires_in } = response.data;
 
@@ -54,11 +57,11 @@ class AuthService {
         data: { token: access_token, expiresAt },
       });
 
-      console.log('Access token generated and cached, expires at', expiresAt.toISOString());
+      log.info({ expiresAt: expiresAt.toISOString() }, 'Access token generated and cached');
       return access_token;
     } catch (error) {
       const axiosError = error as AxiosError;
-      console.error('Failed to get access token', axiosError.message, axiosError.response?.data);
+      log.error({ err: axiosError, mpesaError: axiosError.response?.data }, 'Failed to get access token');
       throw new Error(`M-Pesa auth failed: ${axiosError.message}`);
     }
   }

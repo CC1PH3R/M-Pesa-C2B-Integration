@@ -1,11 +1,14 @@
 import { Request, Response } from 'express';
 import { AxiosError } from 'axios';
 import c2bService from '../services/c2b.service';
+import { createLogger } from '../lib/logger';
+
+const log = createLogger('c2b:controller');
 
 class C2BController {
   async registerUrls(req: Request, res: Response): Promise<Response> {
     try {
-      console.log('Register URLs endpoint called', req.method, req.url);
+      log.info({ method: req.method, url: req.url }, 'Register URLs endpoint called');
 
       const result = await c2bService.registerC2BUrls();
 
@@ -16,7 +19,7 @@ class C2BController {
       });
     } catch (error) {
       const axiosError = error as AxiosError<Record<string, unknown>>;
-      console.error('Register URLs controller error', axiosError.message, axiosError.response?.data);
+      log.error({ err: axiosError, mpesaError: axiosError.response?.data }, 'Register URLs controller error');
 
       return res.status(500).json({
         success: false,
@@ -30,7 +33,7 @@ class C2BController {
 
   async confirmation(req: Request, res: Response): Promise<void> {
     try {
-      console.log('Confirmation callback received', req.body);
+      log.info({ body: req.body }, 'Confirmation callback received');
 
       // Always respond 200 immediately so M-Pesa does not retry
       res.status(200).json({ ResultCode: 0, ResultDesc: 'Success' });
@@ -38,13 +41,13 @@ class C2BController {
       setImmediate(async () => {
         try {
           await c2bService.saveConfirmation(req.body);
-          console.log('Transaction processed successfully');
+          log.info('Transaction processed successfully');
         } catch (error) {
-          console.error('Failed to process confirmation', error);
+          log.error({ err: error }, 'Failed to process confirmation');
         }
       });
     } catch (error) {
-      console.error('Confirmation callback error', error);
+      log.error({ err: error }, 'Confirmation callback error');
       res.status(200).json({ ResultCode: 0, ResultDesc: 'Success' });
     }
   }
@@ -60,7 +63,7 @@ class C2BController {
         data: transactions,
       });
     } catch (error) {
-      console.error('Get transactions controller error', error);
+      log.error({ err: error }, 'Get transactions controller error');
 
       return res.status(500).json({
         success: false,
@@ -87,7 +90,7 @@ class C2BController {
         data: transaction,
       });
     } catch (error) {
-      console.error('Get transaction controller error', error);
+      log.error({ err: error }, 'Get transaction controller error');
 
       return res.status(500).json({
         success: false,
@@ -120,7 +123,7 @@ class C2BController {
         data: result,
       });
     } catch (error) {
-      console.error('Simulate payment controller error', error);
+      log.error({ err: error }, 'Simulate payment controller error');
 
       return res.status(500).json({
         success: false,

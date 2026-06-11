@@ -7,6 +7,7 @@ import cors from 'cors';
 import morgan from 'morgan';
 import routes from './routes';
 import mpesaConfig from './config/mpesa';
+import logger from './lib/logger';
 
 const app = express();
 const PORT = process.env.PORT ?? 3000;
@@ -59,7 +60,7 @@ interface HttpError extends Error {
 }
 
 app.use((err: HttpError, _req: Request, res: Response, _next: NextFunction) => {
-  console.error('Server error', err);
+  logger.error({ err }, 'Server error');
 
   res.status(err.status ?? 500).json({
     success: false,
@@ -71,26 +72,26 @@ app.use((err: HttpError, _req: Request, res: Response, _next: NextFunction) => {
 async function startServer(): Promise<void> {
   try {
     mpesaConfig.validate();
-    console.log('M-Pesa configuration validated');
+    logger.info('M-Pesa configuration validated');
 
     app.listen(PORT, () => {
-      console.log(`Server started on port ${PORT} [${process.env.NODE_ENV ?? 'development'}]`);
-      console.log(`Callback URL: ${mpesaConfig.getCallbackURLs().confirmation}`);
+      logger.info({ port: PORT, env: process.env.NODE_ENV ?? 'development' }, 'Server started');
+      logger.info({ callbackURL: mpesaConfig.getCallbackURLs().confirmation }, 'Callback URL registered');
     });
   } catch (error) {
-    console.error('Failed to start server', error);
+    logger.error({ err: error }, 'Failed to start server');
     process.exit(1);
   }
 }
 
 // Handle graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
+  logger.info('SIGTERM received, shutting down gracefully');
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully');
+  logger.info('SIGINT received, shutting down gracefully');
   process.exit(0);
 });
 
