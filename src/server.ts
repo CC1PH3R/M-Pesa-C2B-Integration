@@ -4,7 +4,6 @@ dotenv.config();
 import express, { Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
-import morgan from 'morgan';
 import routes from './routes';
 import mpesaConfig from './config/mpesa';
 import logger from './lib/logger';
@@ -17,7 +16,6 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(morgan('combined'));
 
 // Routes
 // Using '/api/ganji' instead of '/api/mpesa' to comply with Daraja C2B URL restrictions
