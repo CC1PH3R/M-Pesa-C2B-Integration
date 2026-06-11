@@ -1,6 +1,5 @@
 import { Router, Request, Response } from 'express';
 import authController from '../controllers/auth.controller';
-import mpesaConfig from '../config/mpesa';
 
 const router = Router();
 

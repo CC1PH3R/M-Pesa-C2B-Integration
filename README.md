@@ -38,7 +38,7 @@ src/
 │   └── stkpush.controller.ts # stk/push, stk/query, stk/callback, stk/requests
 └── routes/
     ├── index.ts            # Combines all route groups
-    ├── auth.routes.ts      # /health, /test-auth, /debug-config
+    ├── auth.routes.ts      # /health, /test-auth
     ├── c2b.routes.ts       # /register, /confirmation, /transactions, /simulate
     └── stkpush.routes.ts   # /stk/push, /stk/query, /stk/callback, /stk/requests
 prisma/
@@ -125,11 +125,6 @@ GET /api/ganji/test-auth
 ```
 ```json
 { "success": true, "message": "Authentication successful", "tokenInfo": { "length": 40, "prefix": "abc123..." } }
-```
-
-#### Debug Config *(remove before production)*
-```http
-GET /api/ganji/debug-config
 ```
 
 ---
