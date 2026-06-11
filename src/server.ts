@@ -5,8 +5,9 @@ import express, { Request, Response, NextFunction } from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import morgan from 'morgan';
-import mpesaRoutes from './routes/mpesa.routes';
+import routes from './routes';
 import mpesaConfig from './config/mpesa';
+import logger from './lib/logger';
 
 const app = express();
 const PORT = process.env.PORT ?? 3000;
@@ -20,7 +21,7 @@ app.use(morgan('combined'));
 
 // Routes
 // Using '/api/ganji' instead of '/api/mpesa' to comply with Daraja C2B URL restrictions
-app.use('/api/ganji', mpesaRoutes);
+app.use('/api/ganji', routes);
 
 // Root endpoint
 app.get('/', (_req: Request, res: Response) => {
@@ -29,10 +30,18 @@ app.get('/', (_req: Request, res: Response) => {
     message: 'M-Pesa C2B Test API',
     version: '1.0.0',
     endpoints: {
-      health: '/api/ganji/health',
+      health: 'GET /api/ganji/health',
+      testAuth: 'GET /api/ganji/test-auth',
+      // C2B
       register: 'POST /api/ganji/register',
+      confirmation: 'POST /api/ganji/confirmation',
       transactions: 'GET /api/ganji/transactions',
       simulate: 'POST /api/ganji/simulate',
+      // STK Push
+      stkPush: 'POST /api/ganji/stk/push',
+      stkQuery: 'POST /api/ganji/stk/query',
+      stkCallback: 'POST /api/ganji/stk/callback',
+      stkRequests: 'GET /api/ganji/stk/requests',
     },
   });
 });
@@ -51,7 +60,7 @@ interface HttpError extends Error {
 }
 
 app.use((err: HttpError, _req: Request, res: Response, _next: NextFunction) => {
-  console.error('Server error', err);
+  logger.error({ err }, 'Server error');
 
   res.status(err.status ?? 500).json({
     success: false,
@@ -63,26 +72,26 @@ app.use((err: HttpError, _req: Request, res: Response, _next: NextFunction) => {
 async function startServer(): Promise<void> {
   try {
     mpesaConfig.validate();
-    console.log('M-Pesa configuration validated');
+    logger.info('M-Pesa configuration validated');
 
     app.listen(PORT, () => {
-      console.log(`Server started on port ${PORT} [${process.env.NODE_ENV ?? 'development'}]`);
-      console.log(`Callback URL: ${mpesaConfig.getCallbackURLs().confirmation}`);
+      logger.info({ port: PORT, env: process.env.NODE_ENV ?? 'development' }, 'Server started');
+      logger.info({ callbackURL: mpesaConfig.getCallbackURLs().confirmation }, 'Callback URL registered');
     });
   } catch (error) {
-    console.error('Failed to start server', error);
+    logger.error({ err: error }, 'Failed to start server');
     process.exit(1);
   }
 }
 
 // Handle graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
+  logger.info('SIGTERM received, shutting down gracefully');
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully');
+  logger.info('SIGINT received, shutting down gracefully');
   process.exit(0);
 });
 
