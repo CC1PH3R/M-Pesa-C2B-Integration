@@ -1,18 +1,89 @@
 import path from 'path';
-import { Express } from 'express';
+import { Express, Request, Response, NextFunction } from 'express';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
+import mpesaConfig from './mpesa';
 
 const API_BASE_PATH = '/api/ganji';
+
+function buildApiDescription(): string {
+  const lines = [
+    'REST API for testing Safaricom Daraja C2B (Customer-to-Business) and STK Push (Lipa Na M-Pesa) integrations.',
+    '',
+    '**Try it out** sends requests to the server selected in the dropdown above (defaults to this deployment).',
+    'Safaricom invokes the callback endpoints directly; use the paths below when registering URLs or simulating webhooks.',
+  ];
+
+  if (mpesaConfig.appBaseURL) {
+    const { confirmation, stkCallback } = mpesaConfig.getCallbackURLs();
+    lines.push(
+      '',
+      '**Live callback URLs** (from `APP_BASE_URL`):',
+      `- C2B confirmation: \`${confirmation}\``,
+      `- STK Push callback: \`${stkCallback}\``,
+    );
+  }
+
+  return lines.join('\n');
+}
+
+function resolveRequestBaseUrl(req: Request): string {
+  const forwardedProto = req.get('x-forwarded-proto');
+  const protocol = forwardedProto?.split(',')[0]?.trim() ?? req.protocol;
+  const host = req.get('x-forwarded-host') ?? req.get('host');
+
+  if (!host) {
+    return mpesaConfig.appBaseURL ?? `http://localhost:${process.env.PORT ?? 3000}`;
+  }
+
+  return `${protocol}://${host}`;
+}
+
+function normalizeBaseUrl(url: string): string {
+  return url.replace(/\/+$/, '');
+}
+
+interface OpenApiServer {
+  url: string;
+  description?: string;
+}
+
+function buildServers(currentBaseUrl: string): OpenApiServer[] {
+  const servers: OpenApiServer[] = [
+    {
+      url: currentBaseUrl,
+      description: 'This deployment (use for Try it out)',
+    },
+  ];
+
+  const configuredBase = mpesaConfig.appBaseURL
+    ? normalizeBaseUrl(mpesaConfig.appBaseURL)
+    : undefined;
+
+  if (configuredBase && configuredBase !== currentBaseUrl) {
+    servers.push({
+      url: configuredBase,
+      description: 'Configured APP_BASE_URL (public callbacks)',
+    });
+  }
+
+  const localBase = `http://localhost:${process.env.PORT ?? 3000}`;
+  if (currentBaseUrl !== localBase && configuredBase !== localBase) {
+    servers.push({
+      url: localBase,
+      description: 'Local development',
+    });
+  }
+
+  return servers;
+}
 
 const swaggerDefinition: swaggerJsdoc.OAS3Definition = {
   openapi: '3.0.3',
   info: {
     title: 'M-Pesa C2B & STK Push API',
     version: '1.0.0',
-    description:
-      'REST API for testing Safaricom Daraja C2B (Customer-to-Business) and STK Push (Lipa Na M-Pesa) integrations. ' +
-      'Callback endpoints are invoked by Safaricom; all other endpoints are for local testing and operations.',
+    description: buildApiDescription(),
     contact: {
       name: 'CC1PH3R',
       url: 'https://github.com/CC1PH3R/M-Pesa-C2B-Integration',
@@ -22,12 +93,6 @@ const swaggerDefinition: swaggerJsdoc.OAS3Definition = {
       url: 'https://opensource.org/licenses/MIT',
     },
   },
-  servers: [
-    {
-      url: 'http://localhost:3000',
-      description: 'Local development',
-    },
-  ],
   tags: [
     { name: 'General', description: 'API discovery and metadata' },
     { name: 'Health', description: 'Service health and authentication checks' },
@@ -419,25 +484,42 @@ const swaggerOptions: swaggerJsdoc.Options = {
   ],
 };
 
-export const swaggerSpec = swaggerJsdoc(swaggerOptions);
+const baseSwaggerSpec = swaggerJsdoc(swaggerOptions);
+
+export function buildSwaggerSpec(req?: Request): Record<string, unknown> {
+  const currentBaseUrl = normalizeBaseUrl(
+    req ? resolveRequestBaseUrl(req) : mpesaConfig.appBaseURL ?? `http://localhost:${process.env.PORT ?? 3000}`,
+  );
+
+  return {
+    ...baseSwaggerSpec,
+    servers: buildServers(currentBaseUrl),
+  };
+}
+
+const swaggerUiOptions: swaggerUi.SwaggerUiOptions = {
+  customSiteTitle: 'M-Pesa C2B API — Swagger',
+  swaggerOptions: {
+    persistAuthorization: true,
+    displayRequestDuration: true,
+    // Default to the deployment the docs were opened from, not localhost.
+    url: '/api-docs.json',
+  },
+};
 
 export function setupSwagger(app: Express): void {
+  app.get('/api-docs.json', (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.send(buildSwaggerSpec(req));
+  });
+
   app.use(
     '/api-docs',
     swaggerUi.serve,
-    swaggerUi.setup(swaggerSpec, {
-      customSiteTitle: 'M-Pesa C2B API — Swagger',
-      swaggerOptions: {
-        persistAuthorization: true,
-        displayRequestDuration: true,
-      },
-    }),
+    (req: Request, res: Response, next: NextFunction) => {
+      swaggerUi.setup(buildSwaggerSpec(req), swaggerUiOptions)(req, res, next);
+    },
   );
-
-  app.get('/api-docs.json', (_req, res) => {
-    res.setHeader('Content-Type', 'application/json');
-    res.send(swaggerSpec);
-  });
 }
 
 export { API_BASE_PATH };
