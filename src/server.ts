@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import routes from './routes';
 import mpesaConfig from './config/mpesa';
+import { setupSwagger } from './config/swagger';
 import logger from './lib/logger';
 
 const app = express();
@@ -17,11 +18,28 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// API documentation
+setupSwagger(app);
+
 // Routes
 // Using '/api/ganji' instead of '/api/mpesa' to comply with Daraja C2B URL restrictions
 app.use('/api/ganji', routes);
 
-// Root endpoint
+/**
+ * @openapi
+ * /:
+ *   get:
+ *     tags: [General]
+ *     summary: API root
+ *     description: Returns API metadata and a quick reference of available endpoints.
+ *     responses:
+ *       200:
+ *         description: API information
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/RootResponse'
+ */
 app.get('/', (_req: Request, res: Response) => {
   res.json({
     success: true,
@@ -34,12 +52,16 @@ app.get('/', (_req: Request, res: Response) => {
       register: 'POST /api/ganji/register',
       confirmation: 'POST /api/ganji/confirmation',
       transactions: 'GET /api/ganji/transactions',
+      transactionById: 'GET /api/ganji/transactions/:transID',
       simulate: 'POST /api/ganji/simulate',
       // STK Push
       stkPush: 'POST /api/ganji/stk/push',
       stkQuery: 'POST /api/ganji/stk/query',
       stkCallback: 'POST /api/ganji/stk/callback',
       stkRequests: 'GET /api/ganji/stk/requests',
+      stkRequestById: 'GET /api/ganji/stk/requests/:checkoutRequestID',
+      docs: 'GET /api-docs',
+      openApiSpec: 'GET /api-docs.json',
     },
   });
 });
@@ -74,6 +96,7 @@ async function startServer(): Promise<void> {
 
     app.listen(PORT, () => {
       logger.info({ port: PORT, env: process.env.NODE_ENV ?? 'development' }, 'Server started');
+      logger.info({ docs: `http://localhost:${PORT}/api-docs` }, 'Swagger UI available');
       logger.info({ callbackURL: mpesaConfig.getCallbackURLs().confirmation }, 'Callback URL registered');
     });
   } catch (error) {
