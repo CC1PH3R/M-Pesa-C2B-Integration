@@ -96,7 +96,10 @@ async function startServer(): Promise<void> {
 
     app.listen(PORT, () => {
       logger.info({ port: PORT, env: process.env.NODE_ENV ?? 'development' }, 'Server started');
-      logger.info({ docs: `http://localhost:${PORT}/api-docs` }, 'Swagger UI available');
+      const docsUrl = mpesaConfig.appBaseURL
+        ? `${mpesaConfig.appBaseURL.replace(/\/+$/, '')}/api-docs`
+        : `http://localhost:${PORT}/api-docs`;
+      logger.info({ docs: docsUrl }, 'Swagger UI available');
       logger.info({ callbackURL: mpesaConfig.getCallbackURLs().confirmation }, 'Callback URL registered');
     });
   } catch (error) {
